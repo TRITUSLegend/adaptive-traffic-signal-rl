@@ -1,0 +1,47 @@
+# Adaptive Traffic Signal Control Using Deep RL - Python dependencies
+#
+# Install with:
+#     pip install -r requirements.txt
+#
+# Python 3.10 or newer is required (developed and tested on 3.13).
+#
+# ---------------------------------------------------------------------------
+# ABOUT PyTorch
+# ---------------------------------------------------------------------------
+# The line below installs whatever PyTorch build pip picks by default, which on
+# Windows and Linux is the CUDA build - about 2.5 GB, most of it GPU code this
+# project never touches. Our network is a 2-layer, 64-unit MLP, which is
+# genuinely faster on a CPU than on a GPU (the data transfer costs more than
+# the arithmetic saves), so the CPU build is both smaller and quicker here.
+#
+# To install the ~200 MB CPU-only build instead, run this FIRST, then the
+# normal `pip install -r requirements.txt`:
+#
+#     pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# ---------------------------------------------------------------------------
+# ABOUT SUMO
+# ---------------------------------------------------------------------------
+# `eclipse-sumo` ships the entire SUMO traffic simulator as an ordinary Python
+# wheel, including its compiled binaries. That means SUMO installs into the
+# virtual environment with no administrator rights, no apt/brew/choco, and no
+# separate installer - which is why this project has no manual setup step.
+#
+# If you already have SUMO from the official installer, that works too: set the
+# SUMO_HOME environment variable and sumo_setup.py will prefer it.
+
+# --- simulator --------------------------------------------------------------
+eclipse-sumo==1.27.1        # the SUMO simulator itself (binaries included)
+traci==1.27.1               # Python API for controlling a running simulation
+sumolib==1.27.1             # helpers for reading SUMO network files
+
+# --- reinforcement learning -------------------------------------------------
+sumo-rl==1.4.5              # wraps a SUMO intersection as a Gymnasium environment
+stable-baselines3==2.7.1    # the DQN and PPO implementations
+gymnasium==1.2.3            # the standard RL environment interface
+torch==2.13.0               # neural network backend used by stable-baselines3
+
+# --- data handling and figures ----------------------------------------------
+numpy==2.5.2
+pandas==3.0.5
+matplotlib==3.11.1

@@ -1,0 +1,13 @@
+controller,scenario,n_runs,mean_waiting_time_s_mean,mean_waiting_time_s_std,mean_queue_length_veh_mean,mean_queue_length_veh_std,mean_time_loss_s_mean,mean_time_loss_s_std,throughput_veh_mean,throughput_veh_std
+fixed-time,balanced,5,29.59,0.81,13.02,0.7,38.05,0.94,1546.2,46.06
+fixed-time-tuned,balanced,5,30.47,0.77,13.49,0.7,38.71,0.91,1544.2,45.15
+fixed-time,ns_heavy,5,52.57,9.8,26.06,4.93,70.42,15.0,1725.6,13.46
+fixed-time-tuned,ns_heavy,5,31.84,0.53,15.88,0.32,40.66,0.75,1750.0,15.68
+fixed-time,peak,5,72.06,2.73,43.87,1.83,102.88,4.6,2092.8,19.27
+fixed-time-tuned,peak,5,46.47,5.06,29.55,3.83,60.33,6.63,2221.8,49.87
+fixed-time,ew_heavy,5,46.53,5.91,23.11,2.96,61.1,8.83,1735.0,23.51
+fixed-time-tuned,ew_heavy,5,32.68,1.13,16.33,0.72,41.65,1.25,1754.4,23.31
+fixed-time,surge,5,75.52,3.77,43.82,2.34,109.04,5.07,1987.2,32.33
+fixed-time-tuned,surge,5,45.34,4.8,29.22,3.58,58.09,5.79,2244.8,42.2
+fixed-time,light,5,28.69,0.81,8.48,0.35,36.26,0.75,1044.2,27.87
+fixed-time-tuned,light,5,23.6,0.92,6.97,0.25,30.78,0.9,1042.8,30.52

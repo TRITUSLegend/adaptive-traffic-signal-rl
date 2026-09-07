@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Node (junction) definitions for a single isolated 4-way intersection.
+
+  Geometry: one signalised centre junction "C" at the origin, with four
+  500 m-long approach arms radiating out to N / S / E / W.
+
+  Why 250 m arms?  Each arm must be long enough to physically hold the queue
+  that builds up during a red phase.  If an arm is too short, vehicles that
+  cannot fit "spill back" out of the network and SUMO simply never inserts
+  them, which silently hides congestion and makes every controller look
+  equally good.  At ~7.5 m per queued vehicle, 250 m holds ~33 vehicles per
+  lane - far more than we ever queue here, so no measurement is lost.
+
+  Node types:
+    - "traffic_light" on C  -> netconvert creates a signal head here; this is
+                               the single agent our RL policy will control.
+    - "priority" on the outer nodes -> plain unsignalised endpoints where
+                               vehicles enter and leave the simulation.
+-->
+<nodes>
+    <node id="C" x="0"    y="0"    type="traffic_light" tlType="static" tl="C"/>
+    <node id="N" x="0"    y="250"  type="priority"/>
+    <node id="S" x="0"    y="-250" type="priority"/>
+    <node id="E" x="250"  y="0"    type="priority"/>
+    <node id="W" x="-250" y="0"    type="priority"/>
+</nodes>

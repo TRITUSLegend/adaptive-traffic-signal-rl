@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Explicit lane-to-lane connections through the centre junction.
+
+  We define these by hand rather than letting netconvert guess, because the
+  lane assignment determines which movements can safely run at the same time,
+  which in turn determines the signal phases the RL agent chooses between.
+  Guessed connections vary between SUMO versions; hard-coding them keeps the
+  experiment reproducible.
+
+  Turn directions are stated from the DRIVER's point of view.  For example a
+  vehicle on N2C is driving southwards, so its right turn takes it west.
+
+      approach   heading    right      straight   left
+      ........   ........   .....      ........   .....
+      N2C        south      C2W        C2S        C2E
+      S2C        north      C2E        C2N        C2W
+      E2C        west       C2N        C2W        C2S
+      W2C        east       C2S        C2E        C2N
+
+  Lane usage (same for every approach):
+      fromLane 0 = kerb-side lane, serves straight-ahead and right turns
+      fromLane 1 = median lane, serves the protected left turn only
+-->
+<connections>
+    <!-- === Southbound approach (from North) === -->
+    <connection from="N2C" to="C2W" fromLane="0" toLane="0"/>  <!-- right    -->
+    <connection from="N2C" to="C2S" fromLane="0" toLane="0"/>  <!-- straight -->
+    <connection from="N2C" to="C2E" fromLane="1" toLane="1"/>  <!-- left     -->
+
+    <!-- === Northbound approach (from South) === -->
+    <connection from="S2C" to="C2E" fromLane="0" toLane="0"/>  <!-- right    -->
+    <connection from="S2C" to="C2N" fromLane="0" toLane="0"/>  <!-- straight -->
+    <connection from="S2C" to="C2W" fromLane="1" toLane="1"/>  <!-- left     -->
+
+    <!-- === Westbound approach (from East) === -->
+    <connection from="E2C" to="C2N" fromLane="0" toLane="0"/>  <!-- right    -->
+    <connection from="E2C" to="C2W" fromLane="0" toLane="0"/>  <!-- straight -->
+    <connection from="E2C" to="C2S" fromLane="1" toLane="1"/>  <!-- left     -->
+
+    <!-- === Eastbound approach (from West) === -->
+    <connection from="W2C" to="C2S" fromLane="0" toLane="0"/>  <!-- right    -->
+    <connection from="W2C" to="C2E" fromLane="0" toLane="0"/>  <!-- straight -->
+    <connection from="W2C" to="C2N" fromLane="1" toLane="1"/>  <!-- left     -->
+</connections>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Edge (road) definitions.  An "edge" in SUMO is a one-way road segment, so a
+  two-way street is two edges.  Naming convention used throughout this repo:
+
+      N2C = traffic travelling FROM the north node INTO the centre (inbound)
+      C2N = traffic travelling FROM the centre OUT to the north (outbound)
+
+  Every approach has 2 lanes.  The lane function is fixed by the <connection>
+  entries in connections.con.xml:
+
+      lane 0 (kerb-side) -> straight ahead + right turn
+      lane 1 (median)    -> protected left turn only
+
+  Why 2 lanes and not 3?  With a dedicated left lane we get four genuinely
+  distinct signal phases (NS-through, NS-left, EW-through, EW-left), which
+  gives the RL agent a meaningful choice to make.  Keeping only one through
+  lane also means the intersection actually saturates at the demand levels we
+  simulate - if we over-provision capacity, nothing ever queues and every
+  controller scores the same, so there would be nothing to learn or measure.
+
+  speed="13.89" m/s = 50 km/h, a standard urban arterial limit.
+-->
+<edges>
+    <!-- Inbound: vehicles approaching the signal -->
+    <edge id="N2C" from="N" to="C" numLanes="2" speed="13.89" priority="1"/>
+    <edge id="S2C" from="S" to="C" numLanes="2" speed="13.89" priority="1"/>
+    <edge id="E2C" from="E" to="C" numLanes="2" speed="13.89" priority="1"/>
+    <edge id="W2C" from="W" to="C" numLanes="2" speed="13.89" priority="1"/>
+
+    <!-- Outbound: vehicles leaving the signal -->
+    <edge id="C2N" from="C" to="N" numLanes="2" speed="13.89" priority="1"/>
+    <edge id="C2S" from="C" to="S" numLanes="2" speed="13.89" priority="1"/>
+    <edge id="C2E" from="C" to="E" numLanes="2" speed="13.89" priority="1"/>
+    <edge id="C2W" from="C" to="W" numLanes="2" speed="13.89" priority="1"/>
+</edges>
