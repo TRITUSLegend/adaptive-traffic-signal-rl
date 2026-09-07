@@ -50,6 +50,7 @@ from eval.simulation import (  # noqa: E402
     greedy_factory,
     policy_factory,
     run_episode,
+    safety_wrapped_factory,
 )
 from networks.generate_routes import EVALUATION_SEEDS, SCENARIOS  # noqa: E402
 
@@ -96,7 +97,13 @@ def load_policy(name: str):
 
 def is_learned(controller: str) -> bool:
     """True for anything loaded from agent/models/, including tagged variants."""
-    return controller.split("_")[0] in ("dqn", "ppo")
+    base = controller[:-len("+safe")] if controller.endswith("+safe") else controller
+    return base.split("_")[0] in ("dqn", "ppo")
+
+
+def model_name(controller: str) -> str:
+    """The model file a controller name refers to, ignoring any +safe suffix."""
+    return controller[:-len("+safe")] if controller.endswith("+safe") else controller
 
 
 def build_factory(controller: str, scenario: str):
@@ -105,7 +112,17 @@ def build_factory(controller: str, scenario: str):
 
     The scenario matters only for `fixed-time-tuned`, whose whole point is that
     its timings are calculated from the demand it is about to face.
+
+    A `+safe` suffix wraps the controller in the maximum-green and
+    anti-starvation bounds (see SafetyConstrainedController). Written as a
+    suffix rather than as a separate controller so that any policy can be
+    measured with and without the constraint, on the same code path - which is
+    what turns "the constraint is satisfied" into a cost in seconds.
     """
+    if controller.endswith("+safe"):
+        inner = build_factory(controller[:-len("+safe")], scenario)
+        return None if inner is None else safety_wrapped_factory(inner)
+
     if controller == "fixed-time":
         return fixed_time_factory()
     if controller == "fixed-time-tuned":
@@ -275,7 +292,7 @@ def main() -> None:
     # harness still works before/without a PPO run.
     available = []
     for name in controllers:
-        if is_learned(name) and load_policy(name) is None:
+        if is_learned(name) and load_policy(model_name(name)) is None:
             print("skipping %s - no trained model at agent/models/%s.zip"
                   % (name, name))
             continue

@@ -141,3 +141,70 @@ def test_the_insertion_sentinel_survives_a_round_trip(raw_csv):
     entry = [e for e in summary
              if e["controller"] == "dqn" and e["scenario"] == "surge"][0]
     assert entry["vehicles_not_inserted_max"] == -1
+
+
+# ---------------------------------------------------------------------------
+# Controller-name handling (tagged models and the +safe suffix)
+# ---------------------------------------------------------------------------
+from eval.evaluate import (  # noqa: E402
+    CONTROLLER_ORDER,
+    build_factory,
+    is_learned,
+    model_name,
+)
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("dqn", True), ("ppo", True),
+    ("dqn_seed1", True), ("dqn_mixed", True), ("ppo_long", True),
+    ("dqn+safe", True), ("dqn_seed1+safe", True),
+    ("greedy-queue", False), ("fixed-time", False),
+    ("fixed-time-tuned", False), ("greedy-queue+safe", False),
+])
+def test_learned_controllers_are_recognised(name, expected):
+    assert is_learned(name) is expected
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("dqn", "dqn"),
+    ("dqn+safe", "dqn"),
+    ("dqn_seed1+safe", "dqn_seed1"),
+    ("greedy-queue+safe", "greedy-queue"),
+])
+def test_the_safe_suffix_is_stripped_to_find_the_model(name, expected):
+    assert model_name(name) == expected
+
+
+def test_the_default_sweep_is_unchanged_by_the_new_names():
+    """
+    Tagged and wrapped controllers must be opt-in. If any leaked into
+    CONTROLLER_ORDER, the default `python eval/evaluate.py` would silently
+    stop reproducing the published sweep.
+    """
+    assert CONTROLLER_ORDER == ["fixed-time", "fixed-time-tuned",
+                                "greedy-queue", "dqn", "ppo"]
+    assert not any("+safe" in c or "_" in c for c in CONTROLLER_ORDER)
+
+
+def test_wrapping_a_non_learned_controller_needs_no_model():
+    """A wrapped heuristic is buildable with no model file present."""
+    factory = build_factory("greedy-queue+safe", "ns_heavy")
+    assert factory is not None
+    assert factory(None).uses_env_control is True
+
+
+def test_wrapping_an_untrained_model_yields_no_factory():
+    """
+    Rather than raising, an absent model gives None so the sweep can skip it -
+    the same behaviour the untagged names already had.
+    """
+    assert build_factory("dqn_doesnotexist+safe", "ns_heavy") is None
+
+
+def test_a_wrapped_fixed_plan_still_lets_sumo_drive():
+    """
+    The fixed-time plans are run by SUMO, not by us. Wrapping must not take
+    that over, or the baseline would silently become a different controller.
+    """
+    factory = build_factory("fixed-time+safe", "ns_heavy")
+    assert factory(None).uses_env_control is False

@@ -57,11 +57,24 @@ a checkpoint written here after each so the work can be resumed.
 
 | # | Item | Est. | State | Artifacts |
 |---|---|---|---|---|
-| 1 | 2 extra DQN training seeds | ~1.8 h | not started | `dqn_seed<N>.zip`, curves |
-| 2 | Mixed-demand training | ~1.5 h | not started | `dqn_mixed.zip` |
-| 3 | Paired Wilcoxon significance test | ~0.5 h | not started | `eval/significance.py` |
-| 4 | PPO 400 episodes | ~1.2 h | not started | `ppo_long.zip` |
-| 5 | Max-green / starvation cap | ~1.5 h | not started | controller + eval |
+| 1 | 2 extra DQN training seeds | ~1.8 h | seed1 trained + evaluated; seed2 training | `dqn_seed1.zip` done |
+| 2 | Mixed-demand training | ~1.5 h | code + routes ready, queued behind seed2 | `dqn_mixed.zip` |
+| 3 | Paired significance test | ~0.5 h | **DONE** - Addendum A in REPORT.md | `eval/significance.py` |
+| 4 | PPO 400 episodes | ~1.2 h | queued third | `ppo_long.zip` |
+| 5 | Max-green / starvation cap | ~1.5 h | wrapper + tests done; needs evaluation | `SafetyConstrainedController` |
+
+The three remaining training runs are chained in one background job, in the
+order seed2 -> mixed -> ppo_long. `eval/followups.py` generates addenda B-E and
+skips any whose model is not yet evaluated, so it can be re-run at any point.
+
+### Remaining steps once the training chain finishes
+
+    python eval/evaluate.py --controllers dqn_seed2 dqn_mixed ppo_long --append
+    python eval/evaluate.py --controllers dqn+safe greedy-queue+safe fixed-time-tuned+safe --append
+    python eval/followups.py --write
+    python eval/make_tables.py --write
+    python eval/make_plots.py
+    python -m pytest
 
 **Not attempted, deliberately:** the multi-intersection corridor. Both the
 original brief and the audit deprioritise it, and starting it would trade a
