@@ -314,6 +314,126 @@ class GreedyQueueController(Controller):
         return int(max(range(len(scores)), key=scores.__getitem__))
 
 
+class SafetyConstrainedController(Controller):
+    """
+    Wraps another controller and enforces two constraints it may not respect.
+
+    WHY THIS EXISTS
+    ---------------
+    REPORT.md lists "nothing here is safety-validated" as a limitation: the
+    10 s minimum green and the 4 s amber were the only constraints in force,
+    and neither prevents a policy from holding one phase indefinitely or from
+    ping-ponging between two phases while a third never runs. A real signal is
+    not permitted to do either. Both failure modes are invisible in the average
+    waiting time, because a starved approach carries few enough vehicles that
+    its misery is diluted by the ones being served well.
+
+    The two constraints:
+
+    MAX_GREEN
+        No phase may hold green for longer than this. Caps the worst-case wait
+        for anyone facing a red light.
+
+    MAX_STARVATION
+        No phase may go unserved for longer than this. Stronger than a maximum
+        green, which on its own still permits two phases to alternate forever
+        while a third waits. When the bound is hit, the longest-starved phase
+        is served next regardless of what the wrapped controller asked for.
+
+    THE EXACT GUARANTEE
+    -------------------
+    A phase is served within `MAX_STARVATION + (n_phases - 1) * DELTA_TIME`,
+    not within MAX_STARVATION exactly. The slack is unavoidable rather than
+    sloppy: only one phase can hold green at a time, so if several cross the
+    bound on the same step they have to be worked through one decision at a
+    time. With four phases and a 5 s interval that is 15 s of slack. The
+    wrapper serves the longest-waiting phase first, so the queue of starved
+    phases drains in the order that keeps the worst case smallest.
+
+    WHY A WRAPPER RATHER THAN A CHANGE TO THE ENVIRONMENT
+    -----------------------------------------------------
+    Three reasons. The trained policies do not have to be retrained to gain
+    the constraint. The same policy can be measured with and without it, so
+    the cost of the safety layer is a number rather than an assertion. And the
+    constraint applies identically to every controller - the heuristic and the
+    fixed-time plans included - so adding it does not quietly change what is
+    being compared.
+
+    Note the fixed-time plans already satisfy both constraints by construction:
+    a 104 s cycle serves every phase every 104 s. So wrapping them changes
+    nothing, which is a useful check that the wrapper is not itself altering
+    behaviour it should leave alone.
+    """
+
+    # A through phase already gets 32 s in the untuned plan, and Webster's
+    # search may allocate up to 120 s of cycle; 60 s is comfortably above any
+    # green a sensible plan would ask for, so the cap binds only on a policy
+    # that is genuinely refusing to let go.
+    MAX_GREEN = 60
+
+    # Two full cycles of the untuned 104 s plan. Any approach waiting longer
+    # than this is being starved by any reasonable standard.
+    MAX_STARVATION = 200
+
+    def __init__(self, inner: Controller, env=None, max_green: int = None,
+                 max_starvation: int = None):
+        super().__init__(env)
+        self.inner = inner
+        self.max_green = self.MAX_GREEN if max_green is None else max_green
+        self.max_starvation = (self.MAX_STARVATION if max_starvation is None
+                               else max_starvation)
+        self.name = inner.name + "+safe"
+        self.uses_env_control = inner.uses_env_control
+        # Counters, in simulated seconds.
+        self._green_held = 0
+        self._since_served = {}
+        self._current = None
+        # Diagnostics: how often each constraint had to intervene.
+        self.max_green_overrides = 0
+        self.starvation_overrides = 0
+
+    def on_episode_start(self, env) -> None:
+        self.env = env
+        self.inner.on_episode_start(env)
+        signal = env.traffic_signals[env.ts_ids[0]]
+        self._since_served = {i: 0 for i in range(len(signal.green_phases))}
+        self._green_held = 0
+        self._current = None
+
+    def _advance_clocks(self, chosen: int) -> None:
+        for phase in self._since_served:
+            self._since_served[phase] += DELTA_TIME
+        self._since_served[chosen] = 0
+        if chosen == self._current:
+            self._green_held += DELTA_TIME
+        else:
+            self._green_held = DELTA_TIME
+            self._current = chosen
+
+    def act(self, observation) -> int:
+        requested = self.inner.act(observation)
+
+        # Starvation first: it is the stronger guarantee, and a phase that has
+        # waited too long should be served even if the current one has not yet
+        # reached its maximum green.
+        starved = [p for p, waited in self._since_served.items()
+                   if waited >= self.max_starvation and p != requested]
+        if starved:
+            chosen = max(starved, key=lambda p: self._since_served[p])
+            self.starvation_overrides += 1
+        elif requested == self._current and self._green_held >= self.max_green:
+            # Held too long. Hand over to whichever other phase has waited
+            # longest, which is the choice that most reduces the worst wait.
+            others = [p for p in self._since_served if p != self._current]
+            chosen = max(others, key=lambda p: self._since_served[p])
+            self.max_green_overrides += 1
+        else:
+            chosen = requested
+
+        self._advance_clocks(chosen)
+        return chosen
+
+
 # ---------------------------------------------------------------------------
 # Environment construction
 # ---------------------------------------------------------------------------
@@ -582,3 +702,16 @@ def policy_factory(model, name: str):
 
 def greedy_factory():
     return lambda env: GreedyQueueController(env)
+
+
+def safety_wrapped_factory(inner_factory, max_green: int = None,
+                           max_starvation: int = None):
+    """
+    Wrap any controller factory in the max-green / anti-starvation constraints.
+
+    Takes a factory rather than a controller for the same reason `run_episode`
+    does: the wrapped controller may need the environment, which does not exist
+    until the episode starts.
+    """
+    return lambda env: SafetyConstrainedController(
+        inner_factory(env), env, max_green, max_starvation)

@@ -140,6 +140,28 @@ TRAINING_SCENARIO = "ns_heavy"
 TRAINING_SEEDS = list(range(0, 10))     # 10 different hours of traffic
 EVALUATION_SEEDS = list(range(100, 105))  # 5 unseen hours, used by every controller
 
+# Demand the MIXED-demand agent trains on.
+#
+# The default agent sees only `ns_heavy` and, as REPORT.md section 4.4 shows,
+# absorbs a directional preference from it: it does 21% worse on `ew_heavy`,
+# the same demand mirrored. Training across several demand patterns is the
+# obvious remedy, and this is the set to do it with.
+#
+# WHY THE ROBUSTNESS SCENARIOS ARE EXCLUDED, ESPECIALLY ew_heavy
+# --------------------------------------------------------------
+# `ew_heavy` is exactly the test that exposes the bias, so training on it would
+# not fix the problem - it would delete the measurement. The same goes for
+# `surge` and `light`: they are the held-out set, and an agent that had seen
+# them could not be used to say anything about unseen demand.
+#
+# So the mix is the three evaluation scenarios only. Note honestly what that
+# does and does not buy: `balanced` is symmetric and `peak` is north-south
+# heavy like `ns_heavy`, so the agent still never sees east-west traffic
+# dominate. The hypothesis being tested is therefore the weaker and more
+# defensible one - that exposure to VARIED demand reduces the directional
+# preference - not that the agent is shown the answer.
+MIXED_TRAINING_SCENARIOS = ["balanced", "ns_heavy", "peak"]
+
 # One simulated hour. Justified in REPORT.md: long enough for queues to reach
 # steady state and for several hundred vehicles to complete their trip, short
 # enough that a full training run finishes on a laptop CPU.
@@ -253,6 +275,23 @@ def training_route_files(out_dir: Path = ROUTES_DIR) -> list:
             for s in TRAINING_SEEDS]
 
 
+def mixed_training_route_files(out_dir: Path = ROUTES_DIR) -> list:
+    """
+    Route files for the mixed-demand agent: training seeds across several
+    scenarios, interleaved so consecutive episodes differ in demand pattern
+    rather than arriving in blocks of one scenario at a time.
+
+    Interleaving matters. Ten straight hours of `balanced` followed by ten of
+    `peak` would let the agent drift towards whichever pattern it saw last;
+    alternating keeps every update exposed to the whole mix.
+    """
+    files = []
+    for seed in TRAINING_SEEDS:
+        for scenario in MIXED_TRAINING_SCENARIOS:
+            files.append(out_dir / ("%s_seed%d.rou.xml" % (scenario, seed)))
+    return files
+
+
 def evaluation_route_files(scenario: str, out_dir: Path = ROUTES_DIR) -> list:
     """Paths of the held-out route files every controller is evaluated on."""
     return [out_dir / ("%s_seed%d.rou.xml" % (scenario, s)) for s in EVALUATION_SEEDS]
@@ -314,6 +353,13 @@ def main() -> None:
     parser.add_argument("--force", action="store_true",
                         help="overwrite route files that already exist "
                              "(refused by default)")
+    parser.add_argument("--only-missing", action="store_true",
+                        help="write only files that do not exist yet, leaving "
+                             "every existing one untouched")
+    parser.add_argument("--mixed", action="store_true",
+                        help="also generate training seeds for the "
+                             "mixed-demand scenarios (%s)"
+                             % ", ".join(MIXED_TRAINING_SCENARIOS))
     args = parser.parse_args()
 
     if args.list:
@@ -326,9 +372,31 @@ def main() -> None:
     # that a refusal leaves the directory untouched rather than half-rewritten.
     planned = []
     for scenario in SCENARIOS:
-        for seed in scenario_seeds(scenario):
-            planned.append(ROUTES_DIR / ("%s_seed%d.rou.xml" % (scenario, seed)))
-    existing = [path for path in planned if path.exists()]
+        seeds = set(scenario_seeds(scenario))
+        if args.mixed and scenario in MIXED_TRAINING_SCENARIOS:
+            # The mixed-demand agent needs training seeds for each of its
+            # scenarios, not only for ns_heavy.
+            seeds |= set(TRAINING_SEEDS)
+        for seed in sorted(seeds):
+            planned.append((scenario, seed,
+                            ROUTES_DIR / ("%s_seed%d.rou.xml" % (scenario, seed))))
+    existing = [path for _, _, path in planned if path.exists()]
+
+    if args.only_missing:
+        # Additive mode: write what is absent, leave everything present alone.
+        # This is how demand for a new experiment gets added without putting a
+        # single published route file at risk.
+        todo = [(s, n, p) for s, n, p in planned if not p.exists()]
+        print("\n%d of %d route files already exist and will be left untouched."
+              % (len(existing), len(planned)))
+        if not todo:
+            print("Nothing to write.")
+            return
+        print("Writing %d missing file(s) to %s" % (len(todo), ROUTES_DIR))
+        for scenario, seed, _ in todo:
+            write_scenario(scenario, seed, args.duration, ROUTES_DIR)
+        print("%d route files written." % len(todo))
+        return
 
     if existing and not args.force:
         print(REFUSAL % (len(existing), ROUTES_DIR))
@@ -336,18 +404,21 @@ def main() -> None:
 
     print("\nWriting route files to " + str(ROUTES_DIR))
 
+    # Driven from `planned` rather than recomputing the seed list, so the guard
+    # above and the writing below can never disagree about which files the run
+    # is responsible for.
     written = 0
-    for scenario in SCENARIOS:
-        seeds = scenario_seeds(scenario)
-        counts = []
-        for seed in seeds:
-            path = write_scenario(scenario, seed, args.duration, ROUTES_DIR)
-            # Count vehicles for the summary line.
-            counts.append(sum(1 for line in path.open(encoding="utf-8")
-                              if "<vehicle " in line))
-            written += 1
+    counts_by_scenario = {}
+    for scenario, seed, _ in planned:
+        path = write_scenario(scenario, seed, args.duration, ROUTES_DIR)
+        # Count vehicles for the summary line.
+        counts_by_scenario.setdefault(scenario, []).append(
+            sum(1 for line in path.open(encoding="utf-8")
+                if "<vehicle " in line))
+        written += 1
+    for scenario, counts in counts_by_scenario.items():
         print("  %-10s %2d files, %4d-%4d vehicles per hour"
-              % (scenario, len(seeds), min(counts), max(counts)))
+              % (scenario, len(counts), min(counts), max(counts)))
 
     print("\n%d route files written." % written)
     print("Training uses %s seeds %s; every controller is evaluated on seeds %s."

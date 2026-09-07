@@ -151,14 +151,22 @@ class EpisodeLogger(BaseCallback):
             self._flush()
 
 
-def build_training_env(seed: int):
-    """The environment the agent learns in: ns_heavy demand, rotating seeds."""
-    routes = training_route_files()
+def build_training_env(seed: int, routes: list = None):
+    """
+    The environment the agent learns in.
+
+    By default that is `ns_heavy` demand over rotating seeds, which is what the
+    report's DQN and PPO were trained on. Passing `routes` substitutes a
+    different rotation - used by the mixed-demand agent, which cycles through
+    several demand patterns instead of one.
+    """
+    routes = routes if routes is not None else training_route_files()
     missing = [p.name for p in routes if not p.exists()]
     if missing:
         raise FileNotFoundError(
             "missing training route files (%s ...) - run:  "
-            "python networks/generate_routes.py" % missing[0])
+            "python networks/generate_routes.py --mixed --only-missing"
+            % missing[0])
 
     with quiet_stdout():
         env = make_env(
@@ -173,12 +181,14 @@ def build_training_env(seed: int):
     return Monitor(env)
 
 
-def describe_setup(algo: str, episodes: int, timesteps: int, seed: int) -> None:
+def describe_setup(algo: str, episodes: int, timesteps: int, seed: int,
+                   demand: str = None, n_routes: int = None) -> None:
     print("=" * 72)
     print("Training %s on the single-intersection traffic signal" % algo.upper())
     print("=" * 72)
-    print("  scenario          %s (rotating over %d demand seeds)"
-          % (TRAINING_SCENARIO, len(training_route_files())))
+    print("  scenario          %s (rotating over %d demand files)"
+          % (demand or TRAINING_SCENARIO,
+             n_routes if n_routes is not None else len(training_route_files())))
     print("  episode length    %d simulated seconds (%d decisions)"
           % (EPISODE_SECONDS, STEPS_PER_EPISODE))
     print("  decision interval %d s   yellow %d s   min green %d s"
@@ -189,15 +199,22 @@ def describe_setup(algo: str, episodes: int, timesteps: int, seed: int) -> None:
     print("=" * 72)
 
 
-def train(algo: str, model_factory, episodes: int, seed: int, tag: str = "") -> Path:
+def train(algo: str, model_factory, episodes: int, seed: int, tag: str = "",
+          routes: list = None, demand: str = None) -> Path:
     """
     Run a full training job and save the model plus its learning curve.
 
     `model_factory(env, seed)` builds the stable-baselines3 algorithm; keeping
     it a parameter is what lets DQN and PPO share this function.
+
+    `routes` overrides the demand the agent trains on, and `demand` is the
+    label printed for it. Both default to the single-scenario setup the
+    report's headline agents used.
     """
     timesteps = episodes * STEPS_PER_EPISODE
-    describe_setup(algo, episodes, timesteps, seed)
+    resolved_routes = routes if routes is not None else training_route_files()
+    describe_setup(algo, episodes, timesteps, seed, demand,
+                   len(resolved_routes))
 
     name = algo + (("_" + tag) if tag else "")
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -205,7 +222,7 @@ def train(algo: str, model_factory, episodes: int, seed: int, tag: str = "") -> 
     model_path = MODELS_DIR / name
     curve_path = LOGS_DIR / ("training_curve_%s.csv" % name)
 
-    env = build_training_env(seed)
+    env = build_training_env(seed, resolved_routes)
     model = model_factory(env, seed)
 
     logger = EpisodeLogger(curve_path, algo)

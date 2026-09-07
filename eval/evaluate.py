@@ -69,18 +69,34 @@ METRICS = [
 ]
 
 
-def load_policy(algo: str):
-    """Load a trained stable-baselines3 model, or return None if not trained yet."""
-    path = MODELS_DIR / (algo + ".zip")
+def load_policy(name: str):
+    """
+    Load a trained stable-baselines3 model, or return None if not trained yet.
+
+    `name` is the model's filename stem, which is also the name it is reported
+    under: "dqn" and "ppo" are the two the default sweep uses, and any variant
+    trained with `--tag` ("dqn_seed1", "ppo_long", ...) loads here too. The
+    algorithm is taken from the leading word, because that is what the training
+    scripts put there and a PPO archive cannot be opened by DQN.load.
+    """
+    path = MODELS_DIR / (name + ".zip")
     if not path.exists():
         return None
+    algo = name.split("_")[0]
     if algo == "dqn":
         from stable_baselines3 import DQN
         return DQN.load(str(path), device="cpu")
     if algo == "ppo":
         from stable_baselines3 import PPO
         return PPO.load(str(path), device="cpu")
-    raise ValueError("unknown algorithm: " + algo)
+    raise ValueError(
+        "cannot tell which algorithm %r is: a model name must begin with "
+        "'dqn' or 'ppo'" % name)
+
+
+def is_learned(controller: str) -> bool:
+    """True for anything loaded from agent/models/, including tagged variants."""
+    return controller.split("_")[0] in ("dqn", "ppo")
 
 
 def build_factory(controller: str, scenario: str):
@@ -96,7 +112,7 @@ def build_factory(controller: str, scenario: str):
         return tuned_fixed_time_factory(scenario)
     if controller == "greedy-queue":
         return greedy_factory()
-    if controller in ("dqn", "ppo"):
+    if is_learned(controller):
         model = load_policy(controller)
         if model is None:
             return None
@@ -238,7 +254,9 @@ def print_table(summary: list) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compare traffic signal controllers.")
     parser.add_argument("--controllers", nargs="+", default=None,
-                        help="subset of: " + " ".join(CONTROLLER_ORDER))
+                        help="subset of: " + " ".join(CONTROLLER_ORDER) +
+                             "; a tagged model such as dqn_seed1 or ppo_long "
+                             "also works if agent/models/<name>.zip exists")
     parser.add_argument("--scenarios", nargs="+", default=list(SCENARIOS),
                         help="subset of: " + " ".join(SCENARIOS))
     parser.add_argument("--seeds", nargs="+", type=int, default=EVALUATION_SEEDS,
@@ -257,7 +275,7 @@ def main() -> None:
     # harness still works before/without a PPO run.
     available = []
     for name in controllers:
-        if name in ("dqn", "ppo") and load_policy(name) is None:
+        if is_learned(name) and load_policy(name) is None:
             print("skipping %s - no trained model at agent/models/%s.zip"
                   % (name, name))
             continue

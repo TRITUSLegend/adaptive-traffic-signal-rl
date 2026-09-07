@@ -34,10 +34,12 @@ sys.path.insert(0, str(ROOT))
 
 from networks.generate_routes import (  # noqa: E402
     EVALUATION_SEEDS,
+    MIXED_TRAINING_SCENARIOS,
     SCENARIOS,
     TRAINING_SCENARIO,
     TRAINING_SEEDS,
     TURN_SPLIT,
+    mixed_training_route_files,
     sample_vehicles,
     scenario_seed,
     scenario_seeds,
@@ -168,9 +170,60 @@ def test_the_committed_route_files_are_still_present():
     fix and cannot be reproduced by the current generator, so losing it would
     mean losing the ability to re-run the reported evaluation. This is why the
     generator refuses to overwrite without --force.
+
+    Files ADDED since (the mixed-demand training seeds) are fine and expected;
+    what must never happen is one of the originals going missing.
     """
     routes = ROOT / "networks" / "routes"
-    expected = sum(len(scenario_seeds(s)) for s in SCENARIOS)
-    found = sorted(routes.glob("*.rou.xml"))
-    assert len(found) == expected, "expected %d route files, found %d" % (
-        expected, len(found))
+    for scenario in SCENARIOS:
+        for seed in scenario_seeds(scenario):
+            path = routes / ("%s_seed%d.rou.xml" % (scenario, seed))
+            assert path.exists(), "committed route file missing: %s" % path.name
+
+
+def test_the_mixed_training_set_excludes_the_robustness_scenarios():
+    """
+    THE INVARIANT THE MIXED-DEMAND EXPERIMENT RESTS ON.
+
+    `ew_heavy` is the scenario that exposes the directional bias, and `surge`
+    and `light` are the rest of the held-out set. Training on any of them would
+    not reduce the bias, it would destroy the measurement that detects it - and
+    it would do so invisibly, by making a robustness result look good. If
+    anyone ever adds one to the mix, this fails.
+    """
+    assert "ew_heavy" not in MIXED_TRAINING_SCENARIOS
+    assert "surge" not in MIXED_TRAINING_SCENARIOS
+    assert "light" not in MIXED_TRAINING_SCENARIOS
+
+
+def test_the_mixed_training_set_is_more_than_one_scenario():
+    """Otherwise it is not a mixture and the experiment is meaningless."""
+    assert len(MIXED_TRAINING_SCENARIOS) > 1
+    assert TRAINING_SCENARIO in MIXED_TRAINING_SCENARIOS
+
+
+def test_mixed_training_uses_training_seeds_only():
+    """
+    The held-out evaluation seeds must not leak into training through the
+    mixed-demand route list - that would be the same test-set contamination in
+    a different disguise.
+    """
+    files = mixed_training_route_files()
+    assert len(files) == len(MIXED_TRAINING_SCENARIOS) * len(TRAINING_SEEDS)
+    for path in files:
+        # "balanced_seed7.rou.xml" -> 7. Path.stem only strips ".xml", so the
+        # ".rou" has to come off too.
+        seed = int(path.name.split("_seed")[1].split(".")[0])
+        assert seed in TRAINING_SEEDS
+        assert seed not in EVALUATION_SEEDS
+
+
+def test_mixed_training_interleaves_scenarios():
+    """
+    Consecutive episodes should differ in demand pattern. Ten hours of one
+    scenario followed by ten of another would let the agent drift towards
+    whichever it saw last, which is the opposite of what mixing is for.
+    """
+    names = [p.stem.split("_seed")[0] for p in mixed_training_route_files()]
+    first_cycle = names[:len(MIXED_TRAINING_SCENARIOS)]
+    assert len(set(first_cycle)) == len(MIXED_TRAINING_SCENARIOS)
