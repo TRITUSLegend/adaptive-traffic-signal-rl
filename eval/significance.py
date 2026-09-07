@@ -295,7 +295,7 @@ def build(raw: list, scenarios: list, metric: str) -> str:
         "",
         "Every controller drives the *same* five hours of traffic on a given",
         "scenario, so the comparison is paired and the differences below are",
-        "per-seed. `Mean diff` is A − B in seconds of mean waiting time, so a",
+        "per-seed. `Mean diff` is A - B in seconds of mean waiting time, so a",
         "negative value means A waits less.",
         "",
         "Two tests are reported. The **paired t-test** is the primary result:",
@@ -352,7 +352,20 @@ def interpretation(raw: list, scenarios: list, metric: str) -> list:
     def name_list(items):
         return ", ".join("`%s`" % s for s in items) if items else "none"
 
-    return [
+    # The resolution actually achieved, which is the part that revises §6.
+    significant, not_significant = [], []
+    for scenario in scenarios:
+        diffs = paired_differences(raw, "dqn", "greedy-queue", scenario, metric)
+        if len(diffs) < 2:
+            continue
+        result = paired_t_test(diffs)
+        (significant if result["p"] < ALPHA else not_significant).append(
+            (abs(result["mean"]), scenario))
+
+    smallest_resolved = min(significant) if significant else None
+    largest_unresolved = max(not_significant) if not_significant else None
+
+    lines = [
         "### What the tests change",
         "",
         "Against the greedy heuristic the DQN is significantly better on %s,"
@@ -360,18 +373,42 @@ def interpretation(raw: list, scenarios: list, metric: str) -> list:
         "significantly worse on %s, and indistinguishable on %s."
         % (name_list(losses), name_list(ties)),
         "",
-        "This sharpens §5.1 rather than overturning it. The report's reading -",
-        "that most of the gain comes from being adaptive at all, and that the",
-        "learned policy earns its keep specifically under saturation - survives",
-        "the test: the scenarios where the DQN wins significantly are the",
-        "oversaturated ones, and several of the gaps the report was careful to",
-        "call small are indeed not distinguishable from noise at five seeds.",
-        "",
-        "The caveat in §6 that \"no significance test was run\" no longer",
-        "applies; the one that five runs cannot resolve small differences is",
-        "confirmed and quantified here.",
+        "**§5.1 survives, and gets sharper.** The report's reading - that most",
+        "of the gain comes from being adaptive at all, and that the learned",
+        "policy earns its keep specifically under saturation - is what the",
+        "tests show. Every scenario where the DQN wins significantly is at or",
+        "beyond capacity, and the margins there (13 s) are an order of",
+        "magnitude larger than anywhere else.",
         "",
     ]
+
+    if smallest_resolved and largest_unresolved:
+        lines += [
+            "**§6 needs revising in one respect.** It advises treating \"any gap",
+            "of a second or two as noise\". That is too conservative for a",
+            "*paired* comparison: because every controller drives the identical",
+            "five hours, the seed-to-seed variation cancels, and a gap of",
+            "%.1f s on `%s` is resolved at p<0.05. The honest threshold is"
+            % (smallest_resolved[0], smallest_resolved[1]),
+            "lower than the report assumed - the only DQN-versus-greedy gap that",
+            "does *not* separate is the %.1f s on `%s`."
+            % (largest_unresolved[0], largest_unresolved[1]),
+            "",
+            "That cuts both ways, and the losing direction should be stated as",
+            "plainly as the winning one: the DQN being beaten by the heuristic",
+            "on `balanced` and `ew_heavy` is a real effect, not noise.",
+            "",
+        ]
+
+    lines += [
+        "The §6 caveat that \"no significance test was run\" no longer applies.",
+        "The separate caveat that five runs is a small sample still does: these",
+        "tests establish that differences exist, not how large they would be on",
+        "a different day, and the Wilcoxon column shows how quickly a",
+        "distribution-free test runs out of resolution at this n.",
+        "",
+    ]
+    return lines
 
 
 def main() -> None:
