@@ -41,7 +41,18 @@ stable-baselines3==2.7.1    # the DQN and PPO implementations
 gymnasium==1.2.3            # the standard RL environment interface
 torch==2.13.0               # neural network backend used by stable-baselines3
 
-# --- data handling and figures ----------------------------------------------
+# --- figures ----------------------------------------------------------------
+matplotlib==3.11.1          # the only plotting library this project imports
+
+# --- tests ------------------------------------------------------------------
+# Run them with:  python -m pytest
+pytest==9.1.1
+
+# --- pinned transitive dependencies -----------------------------------------
+# Nothing in this repository imports these directly; both are hard runtime
+# requirements of sumo-rl and stable-baselines3, which would install them
+# anyway. They are pinned here on purpose: an unpinned transitive dependency is
+# the usual way a "working" environment quietly stops matching the one a result
+# was produced in. smoke_test.py checks that both import.
 numpy==2.5.2
 pandas==3.0.5
-matplotlib==3.11.1

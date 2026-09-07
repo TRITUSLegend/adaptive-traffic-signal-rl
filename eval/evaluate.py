@@ -315,8 +315,18 @@ def main() -> None:
     # insert the demanded vehicles, congestion is being hidden outside the
     # simulation and the numbers above understate it.
     worst = max(e["vehicles_not_inserted_max"] for e in summary)
+    unmeasured = [e for e in summary if e["vehicles_not_inserted_max"] < 0]
     print("\n" + "=" * 88)
-    print("Worst-case vehicles that could not be inserted: %d "
+    if unmeasured:
+        # -1 is the sentinel run_episode stores when SUMO could not be asked.
+        # It must not be read as "zero vehicles were dropped".
+        print("WARNING: the insertion backlog could not be measured for %d "
+              "controller/scenario pair(s):" % len(unmeasured))
+        for entry in unmeasured:
+            print("    %s on %s" % (entry["controller"], entry["scenario"]))
+        print("These are recorded as -1, NOT as zero. The honesty check below "
+              "cannot be relied on until they are re-run.")
+    print("Worst-case vehicles still awaiting insertion at the hour's end: %d "
           "(near zero means no demand was silently dropped)" % worst)
     print("Wrote %s" % raw_path)
     print("Wrote %s" % summary_path)

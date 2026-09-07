@@ -2,7 +2,7 @@
 Train a Deep Q-Network to control the traffic signal.
 
 Run:
-    python agent/train_dqn.py                    # default 170 episodes (~35 min on a laptop CPU)
+    python agent/train_dqn.py                    # default 170 episodes (~46 min on a laptop CPU)
     python agent/train_dqn.py --episodes 400     # longer run, better policy
     python agent/train_dqn.py --episodes 20      # quick smoke run
 

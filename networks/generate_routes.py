@@ -36,6 +36,13 @@ same vehicles are produced on every machine and every SUMO version, so the
 fixed-time controller and the RL agent are compared on literally identical
 traffic.
 
+The seed itself comes from ``scenario_seed()``, which uses a CRC of the
+scenario name rather than Python's ``hash()`` - see that function for why the
+difference matters.  Because generation is fully deterministic, re-running this
+script on an existing checkout reproduces byte-identical files and is a no-op;
+it therefore refuses to overwrite them unless ``--force`` is given, so that the
+demand a published result was measured on cannot be replaced by accident.
+
 WHY SEPARATE SEEDS FOR TRAINING AND EVALUATION
 ----------------------------------------------
 Training uses seeds 0-9 and evaluation uses seeds 100-104.  The two sets never
@@ -48,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -183,12 +191,28 @@ def sample_vehicles(flows: dict, duration: int, rng: random.Random) -> list:
     return vehicles
 
 
+def scenario_seed(scenario: str, seed: int) -> int:
+    """
+    A reproducible RNG seed for one (scenario, seed) pair.
+
+    Mixing the scenario NAME into the seed is what stops two scenarios with the
+    same seed number from sharing an identical arrival pattern.
+
+    It must be done with a stable digest, NOT with Python's built-in ``hash()``.
+    ``hash()`` of a string is salted per interpreter process (PYTHONHASHSEED),
+    so seeding from it produces different traffic on every run - the same
+    command would generate a different hour of vehicles each time it was
+    invoked, and the route files a reader regenerated would not be the ones any
+    published result was measured on. ``zlib.crc32`` is a fixed function of the
+    bytes, identical on every machine, Python version and run.
+    """
+    return zlib.crc32(("%s_%d" % (scenario, seed)).encode("utf-8"))
+
+
 def write_scenario(scenario: str, seed: int, duration: int, out_dir: Path) -> Path:
     """Write one <scenario, seed> route file and return its path."""
     flows = SCENARIOS[scenario]["flows"]
-    # Offsetting by scenario name keeps two scenarios with the same seed from
-    # sharing an identical arrival pattern.
-    rng = random.Random(hash((scenario, seed)) & 0xFFFFFFFF)
+    rng = random.Random(scenario_seed(scenario, seed))
     vehicles = sample_vehicles(flows, duration, rng)
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -234,6 +258,40 @@ def evaluation_route_files(scenario: str, out_dir: Path = ROUTES_DIR) -> list:
     return [out_dir / ("%s_seed%d.rou.xml" % (scenario, s)) for s in EVALUATION_SEEDS]
 
 
+REFUSAL = """
+Refusing to overwrite %d existing route file(s) in %s.
+
+The committed route files are the demand every published result was measured
+on. Regenerating them would silently invalidate the numbers in REPORT.md
+unless the models are retrained and the evaluation sweep is re-run against the
+new traffic.
+
+Generation is deterministic, so re-running this script without changing
+--duration or the scenario table reproduces byte-identical files - which means
+there is normally no reason to run it at all on an existing checkout.
+
+If you really do want to replace the demand:
+    python networks/generate_routes.py --force
+    python agent/train_dqn.py
+    python agent/train_ppo.py
+    python eval/evaluate.py
+"""
+
+
+def scenario_seeds(scenario: str) -> list:
+    """
+    Every seed a scenario gets a route file for.
+
+    The training scenario additionally gets the training seeds; every scenario
+    gets the evaluation seeds. Kept as one function so the overwrite guard and
+    the writing loop can never disagree about which files this script owns.
+    """
+    seeds = set(EVALUATION_SEEDS)
+    if scenario == TRAINING_SCENARIO:
+        seeds |= set(TRAINING_SEEDS)
+    return sorted(seeds)
+
+
 def print_scenario_table() -> None:
     print("%-10s %7s %7s %7s  %s" % ("scenario", "N/S", "E/W", "total", "role"))
     print("-" * 78)
@@ -253,6 +311,9 @@ def main() -> None:
                         help="simulated seconds per episode (default: 3600)")
     parser.add_argument("--list", action="store_true",
                         help="print the scenario table and exit")
+    parser.add_argument("--force", action="store_true",
+                        help="overwrite route files that already exist "
+                             "(refused by default)")
     args = parser.parse_args()
 
     if args.list:
@@ -260,12 +321,24 @@ def main() -> None:
         return
 
     print_scenario_table()
+
+    # Work out every file we are about to write BEFORE writing any of them, so
+    # that a refusal leaves the directory untouched rather than half-rewritten.
+    planned = []
+    for scenario in SCENARIOS:
+        for seed in scenario_seeds(scenario):
+            planned.append(ROUTES_DIR / ("%s_seed%d.rou.xml" % (scenario, seed)))
+    existing = [path for path in planned if path.exists()]
+
+    if existing and not args.force:
+        print(REFUSAL % (len(existing), ROUTES_DIR))
+        raise SystemExit(1)
+
     print("\nWriting route files to " + str(ROUTES_DIR))
 
     written = 0
     for scenario in SCENARIOS:
-        seeds = sorted(set(EVALUATION_SEEDS +
-                           (TRAINING_SEEDS if scenario == TRAINING_SCENARIO else [])))
+        seeds = scenario_seeds(scenario)
         counts = []
         for seed in seeds:
             path = write_scenario(scenario, seed, args.duration, ROUTES_DIR)

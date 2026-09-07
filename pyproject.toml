@@ -1,0 +1,44 @@
+# Project metadata and tool configuration.
+#
+# This project is run as a set of scripts, not installed as a library, so there
+# is deliberately no [build-system] table and nothing here builds a wheel. The
+# file exists to give pytest and the linters one place to read their settings
+# from, and to record the Python floor in a machine-readable way rather than
+# only in prose in the README.
+#
+# Runtime dependencies stay in requirements.txt, which is what the README and
+# REPORT.md tell a reader to install from.
+
+[project]
+name = "adaptive-traffic-signal-control"
+version = "1.0.0"
+description = "Deep reinforcement learning for adaptive traffic signal control in SUMO"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+# Tests live in tests/ and import the project's packages from the repo root,
+# which pytest puts on sys.path because of the rootdir setting below.
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+# E501 is off because several docstrings quote SUMO phase strings and command
+# lines that are clearer left intact than wrapped.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Every entry point has to configure SUMO's import paths before importing
+# anything that talks to SUMO, so module-level imports legitimately follow
+# executable statements in these files.
+"agent/*.py" = ["E402"]
+"baseline/*.py" = ["E402"]
+"eval/*.py" = ["E402"]
+"networks/*.py" = ["E402"]
+"smoke_test.py" = ["E402"]
+"tests/*.py" = ["E402"]

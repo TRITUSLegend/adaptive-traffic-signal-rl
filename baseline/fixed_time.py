@@ -48,7 +48,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from eval.simulation import YELLOW_TIME, Controller  # noqa: E402
+from eval.simulation import MIN_GREEN, YELLOW_TIME, Controller  # noqa: E402
 from networks.build_network import (  # noqa: E402
     EAST_WEST,
     NORTH_SOUTH,
@@ -97,10 +97,12 @@ def flow_ratios(scenario: str) -> list:
     ]
 
 
-# Minimum green a phase may be given. Matches the constraint the RL agent
-# operates under, so neither controller gets to use a shorter green than the
-# other.
-MIN_GREEN = 10
+# MIN_GREEN and YELLOW_TIME are imported from eval.simulation rather than
+# redeclared here. They are the two constraints that make the comparison fair -
+# every controller must pay the same amber cost and respect the same minimum
+# green - so there must be exactly one definition of each in the project. A
+# second copy that drifted out of step would hand one controller an advantage
+# silently, with no error and nothing visibly wrong in the results.
 
 
 def allocate_greens(cycle: float, ratios: list) -> list:

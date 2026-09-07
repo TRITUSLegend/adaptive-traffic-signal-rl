@@ -2,7 +2,7 @@
 Train a PPO agent on the same traffic signal, for comparison with the DQN.
 
 Run:
-    python agent/train_ppo.py                    # default 170 episodes (~45 min)
+    python agent/train_ppo.py                    # default 170 episodes (~26 min)
     python agent/train_ppo.py --episodes 400
 
 Outputs:

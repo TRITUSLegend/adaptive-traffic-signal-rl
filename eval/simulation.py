@@ -34,10 +34,17 @@ mean_time_loss_s
     also counts slow crawling, not just full stops.
 
 vehicles_not_inserted
-    Vehicles the demand file asked for that SUMO could never squeeze onto the
-    network because the approach was full.  This is the honesty check: it must
-    be near zero, otherwise congestion is being hidden outside the simulation
-    rather than measured inside it.
+    Vehicles still queued to enter the network when the hour ended, because the
+    approach they need was full.  This is the honesty check: it must be near
+    zero, otherwise congestion is being hidden outside the simulation rather
+    than measured inside it.
+
+    Two things to be precise about.  It is a *snapshot* taken at the final
+    step, not a running count over the hour - the two nearly coincide because
+    demand stops when the episode does, so a vehicle still in that queue is one
+    that never entered at all.  And a value of -1 means the measurement itself
+    failed; it does not mean zero.  The distinction matters because zero is the
+    reading the report relies on, so a failure must never be able to imitate it.
 
 A NOTE ON SURVIVORSHIP BIAS
 ---------------------------
@@ -61,6 +68,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import sumo_setup  # noqa: E402,F401  (configures SUMO paths before any SUMO import)
+import traci  # noqa: E402  (importable only after sumo_setup has run)
 
 NET_FILE = ROOT / "networks" / "single_intersection.net.xml"
 ROUTES_DIR = ROOT / "networks" / "routes"
@@ -438,7 +446,7 @@ def run_episode(controller_factory, controller_name: str, scenario: str, seed: i
     previous_cwd = os.getcwd()
     os.chdir(ROOT)  # so the relative --tripinfo-output path resolves correctly
     try:
-        with _quiet_stdout():
+        with quiet_stdout():
             env = make_env(scenario, seed, fixed_ts=fixed_ts, tripinfo=tripinfo)
         controller = controller_factory(env)
 
@@ -446,7 +454,7 @@ def run_episode(controller_factory, controller_name: str, scenario: str, seed: i
         queue_samples = []
         last_green = None
 
-        with _quiet_stdout():
+        with quiet_stdout():
             observation, _ = env.reset()
         # Only now does a live SUMO connection exist, so this is the earliest
         # point a controller can inspect or reconfigure the signal.
@@ -486,9 +494,21 @@ def run_episode(controller_factory, controller_name: str, scenario: str, seed: i
         # we tear the connection down. A large number here would mean the
         # approaches were so full that demand was being dropped outside the
         # simulation, which would invalidate the comparison.
-        with contextlib.suppress(Exception):
+        #
+        # This must not fail to zero. Zero is the *good* reading - it is what
+        # the report cites to argue no demand was hidden outside the
+        # simulation - so a failed measurement that silently produced 0 would
+        # be indistinguishable from a clean result and would corroborate a
+        # claim nothing had actually checked. Store the sentinel -1 instead, so
+        # a broken reading is visible in the CSV and in any table built from it.
+        try:
             result.vehicles_not_inserted = len(
                 env.sumo.simulation.getPendingVehicles())
+        except traci.TraCIException as exc:
+            print("  warning: could not read the insertion backlog for "
+                  "%s/%s seed %d (%s); recording -1"
+                  % (controller_name, scenario, seed, exc))
+            result.vehicles_not_inserted = -1
         env.close()  # flushes the tripinfo file to disk
     finally:
         os.chdir(previous_cwd)
@@ -523,7 +543,7 @@ def _signal_state(env) -> str:
 
 
 @contextlib.contextmanager
-def _quiet_stdout():
+def quiet_stdout():
     """
     Silence output written straight to file descriptor 1.
 

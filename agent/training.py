@@ -37,10 +37,11 @@ from eval.simulation import (  # noqa: E402
     DELTA_TIME,
     EPISODE_SECONDS,
     MIN_GREEN,
+    N_INCOMING_LANES,
     REWARD_FN,
     YELLOW_TIME,
-    _quiet_stdout,
     make_env,
+    quiet_stdout,
 )
 from networks.generate_routes import TRAINING_SCENARIO, training_route_files  # noqa: E402
 
@@ -79,7 +80,7 @@ class RotatingRouteEnv(gym.Wrapper):
     def reset(self, **kwargs):
         self._index = (self._index + 1) % len(self._routes)
         self.env.unwrapped._route = self._routes[self._index]
-        with _quiet_stdout():
+        with quiet_stdout():
             return self.env.reset(**kwargs)
 
 
@@ -117,18 +118,24 @@ class EpisodeLogger(BaseCallback):
                 "wall_seconds": round(time.time() - self._start, 1),
                 # Mean queue implied by the return, in vehicles: easier to read
                 # than the raw return and directly comparable to the baseline.
+                #
+                # This multiplies by the same constant the reward divides by, so
+                # it must be imported rather than written out - a literal here
+                # would silently mislabel every training curve if the lane count
+                # ever changed, while still producing plausible-looking numbers.
                 "mean_queue_veh": round(
-                    -float(episode["r"]) * 8.0 / max(int(episode["l"]), 1), 2),
+                    -float(episode["r"]) * N_INCOMING_LANES
+                    / max(int(episode["l"]), 1), 2),
             }
             self.rows.append(row)
             if n % self.report_every == 0:
                 window = self.rows[-self.report_every:]
                 avg = sum(r["return"] for r in window) / len(window)
                 queue = sum(r["mean_queue_veh"] for r in window) / len(window)
-                print("  episode %4d | %7d steps | return(avg%d) %9.1f "
+                print("  %-3s episode %4d | %7d steps | return(avg%d) %9.1f "
                       "| mean queue %5.1f veh | %5.1f min elapsed"
-                      % (n, self.num_timesteps, self.report_every, avg, queue,
-                         row["wall_seconds"] / 60.0))
+                      % (self.algo, n, self.num_timesteps, self.report_every,
+                         avg, queue, row["wall_seconds"] / 60.0))
                 self._flush()
         return True
 
@@ -153,7 +160,7 @@ def build_training_env(seed: int):
             "missing training route files (%s ...) - run:  "
             "python networks/generate_routes.py" % missing[0])
 
-    with _quiet_stdout():
+    with quiet_stdout():
         env = make_env(
             scenario=TRAINING_SCENARIO,
             seed=seed,
