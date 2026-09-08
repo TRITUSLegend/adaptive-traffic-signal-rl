@@ -162,7 +162,7 @@ eval/              Measurement
   significance.py                    paired t and exact Wilcoxon (addendum A)
   followups.py                       generates addenda B-E from the same data
 
-tests/             221 tests, run with `python -m pytest`
+tests/             264 tests, run with `python -m pytest`
 
 results/           Outputs
   logs/                              per-episode CSVs, summary tables, traces

@@ -167,3 +167,28 @@ def test_amber_serves_exactly_the_movements_its_green_did(green):
 
 def test_an_all_red_phase_stays_all_red():
     assert yellow_state("rrrr") == "rrrr"
+
+
+# ---------------------------------------------------------------------------
+# The phase count other modules assume
+# ---------------------------------------------------------------------------
+def test_the_addendum_generator_knows_how_many_phases_there_are():
+    """
+    `eval/followups.py` reports "n of 4 phases served" in addendum E, because a
+    phase that never runs leaves no gap to measure and is otherwise invisible.
+    It keeps the 4 as a literal rather than importing it from here, which would
+    pull SUMO's path setup into a script that only reads CSVs. This is the
+    check that closes that loop: if the network ever gains or loses a phase,
+    the report stops quietly comparing against the wrong denominator.
+    """
+    from eval.followups import N_GREEN_PHASES
+
+    assert N_GREEN_PHASES == len(PHASE_NAMES)
+    assert N_GREEN_PHASES == len(EXPECTED_PHASES)
+
+
+def test_the_built_network_really_has_that_many_green_phases(phases):
+    """The same number, from the compiled network rather than from a name list."""
+    from eval.followups import N_GREEN_PHASES
+
+    assert len(phases) == N_GREEN_PHASES

@@ -350,19 +350,43 @@ class SafetyConstrainedController(Controller):
     wrapper serves the longest-waiting phase first, so the queue of starved
     phases drains in the order that keeps the worst case smallest.
 
+    Measured, not asserted. On the trace seed, the longest a phase went
+    unserved:
+
+        greedy-queue  balanced   245 s unwrapped ->  215 s wrapped
+        greedy-queue  ns_heavy   320 s unwrapped ->  215 s wrapped
+        DQN           balanced   280 s unwrapped ->  210 s wrapped
+        DQN           ns_heavy   315 s unwrapped ->  210 s wrapped
+
+    which is the 215 s bound above, reached from well outside it.
+
+    IT MUST WATCH THE SIGNAL, NOT ITS OWN REQUESTS
+    ----------------------------------------------
+    The clocks are advanced in `_observe` from the phase the signal is
+    actually showing. The first version of this class advanced them from the
+    phase the inner controller asked for, which is not the same thing - sumo-rl
+    refuses a phase change until the current green has run for
+    `yellow + min_green` - and the constraint consequently never fired at all.
+    See `_observe` for the measurement.
+
     WHY A WRAPPER RATHER THAN A CHANGE TO THE ENVIRONMENT
     -----------------------------------------------------
     Three reasons. The trained policies do not have to be retrained to gain
     the constraint. The same policy can be measured with and without it, so
     the cost of the safety layer is a number rather than an assertion. And the
-    constraint applies identically to every controller - the heuristic and the
-    fixed-time plans included - so adding it does not quietly change what is
-    being compared.
+    constraint applies identically to every controller that drives its own
+    signal, so adding it does not quietly change what is being compared.
 
-    Note the fixed-time plans already satisfy both constraints by construction:
-    a 104 s cycle serves every phase every 104 s. So wrapping them changes
-    nothing, which is a useful check that the wrapper is not itself altering
-    behaviour it should leave alone.
+    THE ONE CONTROLLER IT CANNOT WRAP
+    ---------------------------------
+    A fixed-time plan is run by SUMO's own program (`fixed_ts=True`), so this
+    class's `act` is never consulted and sumo-rl does not maintain the phase
+    index it would need to watch. The wrapper is therefore inert on those
+    plans, and says so rather than pretending: `act` passes the action through
+    and the counters stay at zero. The plans do satisfy both constraints - a
+    104 s cycle serves every phase every 104 s - but that is a property of the
+    plan, established from its recorded light strings, not something this
+    wrapper measured.
     """
 
     # A through phase already gets 32 s in the untuned plan, and Webster's
@@ -384,10 +408,11 @@ class SafetyConstrainedController(Controller):
                                else max_starvation)
         self.name = inner.name + "+safe"
         self.uses_env_control = inner.uses_env_control
-        # Counters, in simulated seconds.
+        # Counters, in simulated seconds, of what the SIGNAL did.
         self._green_held = 0
         self._since_served = {}
         self._current = None
+        self._observed_once = False
         # Diagnostics: how often each constraint had to intervene.
         self.max_green_overrides = 0
         self.starvation_overrides = 0
@@ -405,18 +430,63 @@ class SafetyConstrainedController(Controller):
         self._since_served = {i: 0 for i in range(signal.num_green_phases)}
         self._green_held = 0
         self._current = None
+        self._observed_once = False
 
-    def _advance_clocks(self, chosen: int) -> None:
-        for phase in self._since_served:
-            self._since_served[phase] += DELTA_TIME
-        self._since_served[chosen] = 0
-        if chosen == self._current:
+    def _observe(self) -> None:
+        """
+        Advance the clocks from what the signal is DOING.
+
+        This is the whole correctness of the wrapper, and the first version got
+        it wrong. It reset a phase's clock when the inner controller *asked*
+        for that phase. But asking is not being served: sumo-rl refuses a phase
+        change until the current green has run for `yellow + min_green`, so a
+        controller can request a phase every few seconds and never receive it.
+        Measured over one `balanced` hour, the phase the greedy heuristic asked
+        for was not the phase then showing green on 573 of 720 decisions.
+
+        The consequence was not a wrong number, it was no constraint at all.
+        The wrapper's own worst "unserved" clock reached 175 s, stayed under
+        its 200 s bound, and fired zero overrides - while the junction left a
+        phase unserved for 245 s. A safety wrapper that reports compliance by
+        measuring its own intentions is worse than none, because it is
+        believed.
+
+        `green_phase` is the phase index actually in force, and it is checked
+        against the recorded light strings in the tests. Amber is not a
+        service: during it no phase has right of way, so it neither extends the
+        current green nor resets anything.
+        """
+        signal = self.env.traffic_signals[self.env.ts_ids[0]]
+        if self._observed_once:
+            # No time has passed before the first decision of an episode.
+            for phase in self._since_served:
+                self._since_served[phase] += DELTA_TIME
+        self._observed_once = True
+
+        if getattr(signal, "is_yellow", False):
+            self._green_held = 0
+            self._current = None
+            return
+
+        current = int(signal.green_phase)
+        self._since_served[current] = 0
+        if current == self._current:
             self._green_held += DELTA_TIME
         else:
             self._green_held = DELTA_TIME
-            self._current = chosen
+            self._current = current
 
     def act(self, observation) -> int:
+        if not self.uses_env_control:
+            # SUMO is running its own fixed program. Our `act` is never
+            # consulted, and sumo-rl does not maintain `green_phase` in that
+            # mode, so the wrapper can neither observe the signal nor change
+            # it. Pass the action through and leave the counters at zero,
+            # rather than keeping a clock that would look like evidence and
+            # mean nothing. Addendum E reports this row as an inert wrapper.
+            return self.inner.act(observation)
+
+        self._observe()
         requested = self.inner.act(observation)
 
         # Starvation first: it is the stronger guarantee, and a phase that has
@@ -436,7 +506,9 @@ class SafetyConstrainedController(Controller):
         else:
             chosen = requested
 
-        self._advance_clocks(chosen)
+        # Deliberately no clock update here. The clocks move in `_observe`,
+        # from what the signal did, and the request made now may not be
+        # granted - which is exactly the mistake the first version made.
         return chosen
 
 

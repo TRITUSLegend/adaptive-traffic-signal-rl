@@ -49,7 +49,7 @@ from the re-run data, which is the same statement made from the other end.
 |---|---|---|---|
 | D1 | Route generation not reproducible | Critical | **Fixed & verified** |
 | D2 | No version control | Critical | **Fixed** |
-| D3 | No automated tests | Serious | **Fixed** — 250 tests |
+| D3 | No automated tests | Serious | **Fixed** — 264 tests |
 | D4 | Report's provenance claim was false | Serious | **Fixed & enforced** |
 | D5 | `MIN_GREEN` defined twice | Moderate | **Fixed** |
 | D6 | Honesty metric failed silently to zero | Moderate | **Fixed** |
@@ -117,7 +117,7 @@ pushed to, per instruction.
 
 ### D3 — No automated tests
 
-**250 tests** in `tests/`, all passing in 1.3 s:
+**264 tests** in `tests/`, all passing in 1.3 s:
 
 | Module | Tests | Covers |
 |---|---|---|
@@ -125,10 +125,10 @@ pushed to, per instruction.
 | `test_significance.py` | 27 | The hand-rolled t and Wilcoxon distributions |
 | `test_route_determinism.py` | 26 | D1, seeding, arrival process, held-out seeds |
 | `test_evaluate_merge.py` | 25 | Append-mode merge, tagged and `+safe` controller names |
-| `test_network_phases.py` | 20 | Phase strings, exclusivity, amber derivation |
-| `test_followups.py` | 19 | The addendum generators: branch choice and table shape |
+| `test_network_phases.py` | 22 | Phase strings, exclusivity, amber derivation |
+| `test_followups.py` | 25 | The addendum generators: branch choice and table shape |
 | `test_output_naming.py` | 19 | F2, F3 — trace filenames, generated-table guards |
-| `test_safety_constraints.py` | 18 | F1 — maximum green and the starvation bound |
+| `test_safety_constraints.py` | 24 | F1, F4 — maximum green and the starvation bound |
 | `test_report_matches_data.py` | 16 | D4, report-to-CSV provenance |
 | `test_tripinfo.py` | 9 | Trip parsing, survivorship bias |
 
@@ -236,7 +236,7 @@ is explained by a comment. Not worth the risk during a remediation pass.
 | Both models load and predict | **pass** — DQN→2, PPO→1 on a fixed probe; both 21→64→64→4 |
 | Full 150-episode sweep re-run | **pass** — 26.4 min |
 | Sweep reconciled against original | **pass** — 150/150 bit-for-bit identical |
-| Test suite | **250 passed** in 1.3 s |
+| Test suite | **264 passed** in 1.3 s |
 | Tests proven to catch breaks | **pass** — 5/5 mutations caught |
 | Route determinism, 3 fresh processes | **pass** — identical sha256 |
 | Overwrite guard refuses and leaves files intact | **pass** — exit 1, `git status` clean |
@@ -294,15 +294,89 @@ every row comes from one fresh sweep. Zero numeric values differ.
 These are not audit findings. They are bugs in the Phase 3 code — the extra
 training seeds, the mixed-demand agent, the longer PPO run and the safety
 wrapper — caught before any of it produced a published number. They are
-recorded here rather than quietly fixed because two of the three would have
+recorded here rather than quietly fixed because three of the four would have
 failed *silently*, which is the failure mode this whole document exists to
 argue against.
 
 | ID | Defect | Would have | Status |
 |---|---|---|---|
+| F4 | **The safety wrapper enforced nothing** | Published a false safety claim | **Fixed & tested** |
 | F1 | Safety wrapper crashed on a fixed-time plan | Blocked one row entirely | **Fixed & tested** |
 | F2 | Trace filename built three ways, two disagreed | Published a short table | **Fixed & tested** |
 | F3 | Generated table looked up an unknown controller | Crashed the last step | **Fixed & tested** |
+
+F4 is listed first because it is the one that mattered. The other three would
+have produced a visibly broken artefact or none at all; F4 would have produced
+a complete, plausible, confident section asserting a safety property the
+controllers did not have.
+
+### F4 — the safety wrapper enforced nothing
+
+The most serious of the four, and the one that would have been believed.
+
+`SafetyConstrainedController` reset a phase's starvation clock when the wrapped
+controller **asked** for that phase. Asking is not being served: sumo-rl refuses
+a phase change while the current green is younger than `yellow + min_green`, so
+a controller can request a phase every few seconds and never receive it. Every
+refused request reset the clock, the bound was never reached, and the wrapper
+passed every action through untouched.
+
+**Measured on one `balanced` hour, with the wrapper in force:**
+
+```
+the phase asked for was not the phase then green : 573 of 720 decisions
+the wrapper's own worst "unserved" clock         : 175 s   (bound: 200 s)
+starvation overrides fired                       :   0
+max-green overrides fired                        :   0
+longest a phase actually went unserved           : 245 s
+```
+
+The wrapper reported compliance, at 175 s against its 200 s bound, while the
+junction left a movement dark for 245 s. `greedy-queue+safe` produced a trace
+**bit-identical** to `greedy-queue`, which is what a wrapper that never fires
+looks like from the outside — and it had been read as "the policy was already
+safe."
+
+**The fix.** `_observe()` now advances the clocks from `signal.green_phase` —
+the phase actually showing green — at each decision, and amber resets nothing
+because during amber no phase has right of way. The request the wrapper makes
+this step is not credited to anything; if it is refused, the clock keeps
+climbing and the wrapper keeps asking until it is granted.
+
+**What that changed, on the trace seed:**
+
+| Controller | Longest a phase went unserved, unwrapped | Wrapped |
+|---|---|---|
+| Greedy queue, `balanced` | 245 s | **215 s** |
+| Greedy queue, `ns_heavy` | 320 s | **215 s** |
+| DQN, `balanced` | 280 s | **210 s** |
+| DQN, `ns_heavy` | 315 s | **210 s** |
+
+against a 200 s bound with up to 45 s of forced hand-over slack. The cost was
+under half a second of mean waiting time, and on `ns_heavy` both controllers
+were *faster* wrapped than unwrapped.
+
+**Two consequences for the report.** The unconstrained policies were not
+already safe — they violated the starvation bound on every scenario checked, by
+between 45 and 140 seconds. And addendum E's conclusion is now derived from the
+traces rather than asserted in prose: the earlier version hard-coded the
+sentence "it serves every phase well inside 200 s" into the branch that fires
+when the constraint is cheap, so it would have printed that claim over data
+that contradicted it. `tests/test_followups.py` now covers both branches.
+
+**Why the tests did not catch it.** The stub signal simply did what it was
+told, so "asked for" and "served" were the same thing and the bug was invisible
+by construction. `tests/test_safety_constraints.py` now models sumo-rl's
+refusal window, and `drive()` returns what the signal **served** rather than
+what was requested; every guarantee is asserted against that sequence.
+`test_a_refused_request_does_not_count_as_a_service` pins the accounting in its
+smallest form, and `test_a_phase_asked_for_but_never_served_still_trips_the_bound`
+drives an adversarial controller that asks for a phase only at the moments the
+signal will refuse it.
+
+That is the general lesson of this one: a test double that is more obedient
+than the system it stands in for will certify behaviour the real system does
+not have.
 
 ### F1 — the safety wrapper could not wrap a fixed-time plan
 
@@ -402,7 +476,7 @@ from its recorded light strings instead.
 ## 6. How to re-verify
 
 ```bash
-python -m pytest                     # 250 tests, ~1 s
+python -m pytest                     # 264 tests, ~1 s
 python -m ruff check .               # lint, rule set pinned in pyproject.toml
 python smoke_test.py                 # toolchain, 5 checks
 python eval/evaluate.py              # ~26 min; must reproduce the CSVs exactly

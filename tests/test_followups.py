@@ -88,15 +88,25 @@ def write_curve(logs_dir: Path, name: str, episodes: int, final_queue: float):
             writer.writerow({"episode": episode, "mean_queue_veh": final_queue})
 
 
+STATES = ("GGrrrrGGrrrr", "rrGrrrrrGrrr", "rrrGGrrrrGGr", "rrrrrGrrrrrG")
+
+
 def write_trace(logs_dir: Path, controller: str, scenario: str,
-                hold_seconds: int = 30):
+                holds=(30, 30, 30, 30)):
+    """
+    A trace that shows each phase in turn for the given number of seconds.
+
+    The first hold sets the worst unserved gap, because every later phase has
+    been waiting since t=0 - which is exactly the quantity addendum E reports,
+    so a test can dial a compliant or a violating trace by changing one number.
+    """
     path = logs_dir / paths.trace_filename(controller, scenario)
     time = 0.0
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["sim_time", "signal_state"])
         writer.writeheader()
-        for state in ("GGrrrrGGrrrr", "rrrGGrrrrGGr"):
-            for _ in range(hold_seconds // 5):
+        for state, hold in zip(STATES, holds):
+            for _ in range(int(hold) // 5):
                 time += 5.0
                 writer.writerow({"sim_time": time, "signal_state": state})
 
@@ -296,16 +306,98 @@ def test_safety_is_skipped_until_a_wrapped_run_exists(logs):
     assert followups.safety(rows_for("dqn", flat(20.0))) is None
 
 
-def test_a_free_constraint_is_reported_as_free(logs):
+def write_safety_traces(logs, unwrapped_first_hold, wrapped_first_hold):
+    """Traces for every controller in the sweep, with a chosen worst gap."""
     for controller in followups.SAFETY_CONTROLLERS:
-        write_trace(logs, controller, "ns_heavy")
-        write_trace(logs, controller + "+safe", "ns_heavy")
+        write_trace(logs, controller, followups.TRACE_SCENARIO,
+                    holds=(unwrapped_first_hold, 30, 30, 30))
+        write_trace(logs, controller + "+safe", followups.TRACE_SCENARIO,
+                    holds=(wrapped_first_hold, 30, 30, 30))
+
+
+def test_a_free_constraint_is_reported_as_free(logs):
+    write_safety_traces(logs, 30, 30)
 
     text = followups.safety(safety_raw(cost=0.0))
 
-    assert "essentially free" in text
-    assert "safety property *checkable*" in text
+    assert "close to free" in text
     assert_tables_are_well_formed(text, least=2)
+
+
+def test_a_bound_that_was_already_met_is_not_called_a_violation(logs):
+    write_safety_traces(logs, 30, 30)
+    text = followups.safety(safety_raw(cost=0.0))
+    assert "Both bounds were already satisfied" in text
+    assert "not already satisfied" not in text
+
+
+def test_a_bound_violation_is_reported_as_a_violation(logs):
+    """
+    THE CLAIM THAT MUST FOLLOW THE DATA. If the unconstrained policy left a
+    phase unserved past the bound, the addendum has to say so - the earlier
+    version of this section asserted compliance in prose whatever the traces
+    showed, and the traces showed 315 s against a 200 s bound.
+    """
+    starved = followups.MAX_STARVATION + 120
+    write_safety_traces(logs, starved, 30)
+
+    text = followups.safety(safety_raw(cost=0.0))
+
+    _, gap, _ = followups.trace_bounds("dqn", followups.TRACE_SCENARIO)
+    assert gap > followups.MAX_STARVATION, "the fixture must actually violate"
+
+    assert "not already satisfied" in text
+    assert "Both bounds were already satisfied" not in text
+    assert "%.0f s" % gap in text, "the prose quotes the measured gap"
+    assert "**%.0f s**" % gap in text, "and the table flags it as over bound"
+
+
+def test_the_gap_counts_the_wait_before_a_phases_first_green(logs):
+    """
+    Hand-computed. Phase 0 holds green for 100 s and the other three get 10 s
+    each, so the last of them waits 125 s for its first green. A version that
+    measured only the intervals BETWEEN services would score that phase 0 - it
+    has no earlier service to measure from - which is precisely backwards.
+    """
+    write_trace(logs, "probe", "ns_heavy", holds=(100, 10, 10, 10))
+
+    longest_green, gap, seen = followups.trace_bounds("probe", "ns_heavy")
+
+    assert seen == 4
+    assert longest_green == 100.0
+    assert gap == 125.0
+
+
+def test_a_phase_that_never_runs_shows_up_in_the_count(logs):
+    """The gap cannot express total starvation, so the count has to."""
+    write_trace(logs, "probe", "ns_heavy", holds=(100, 10, 10, 0))
+
+    _, _, seen = followups.trace_bounds("probe", "ns_heavy")
+
+    assert seen == 3, "a phase that never ran must not be counted as served"
+
+
+def test_the_phase_count_is_reported_next_to_the_gap(logs):
+    """A phase that never runs leaves no gap to measure, so the count is the
+    only place total starvation could show up."""
+    write_safety_traces(logs, 30, 30)
+    text = followups.safety(safety_raw(cost=0.0))
+    assert "%d of %d" % (len(STATES), followups.N_GREEN_PHASES) in text
+
+
+def test_the_bounds_quoted_are_the_bounds_the_wrapper_enforces(logs):
+    """A retyped literal here would let the report describe a constraint the
+    code does not apply."""
+    from eval.simulation import SafetyConstrainedController
+
+    assert followups.MAX_GREEN == SafetyConstrainedController.MAX_GREEN
+    assert followups.MAX_STARVATION == SafetyConstrainedController.MAX_STARVATION
+    assert followups.STARVATION_CEILING > followups.MAX_STARVATION
+
+    write_safety_traces(logs, 30, 30)
+    text = followups.safety(safety_raw(cost=0.0))
+    assert "%d s maximum" % followups.MAX_GREEN in text
+    assert "%d s starvation bound" % followups.MAX_STARVATION in text
 
 
 def test_a_costly_constraint_is_reported_as_a_price(logs):
@@ -352,9 +444,7 @@ def test_the_whole_addendum_set_renders_valid_markdown(logs):
     for name in ("dqn", "dqn_seed1", "dqn_seed2", "dqn_mixed", "ppo",
                  "ppo_long"):
         write_curve(logs, name, 400 if name == "ppo_long" else 170, 11.0)
-    for controller in followups.SAFETY_CONTROLLERS:
-        write_trace(logs, controller, "ns_heavy")
-        write_trace(logs, controller + "+safe", "ns_heavy")
+    write_safety_traces(logs, followups.MAX_STARVATION + 100, 30)
 
     raw = (rows_for("dqn", with_scenarios(20.0, ns_heavy=20.0, ew_heavy=25.0,
                                           peak=40.0, surge=38.0))

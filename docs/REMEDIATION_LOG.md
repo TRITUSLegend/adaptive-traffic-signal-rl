@@ -101,8 +101,24 @@ finished single-junction result for an unfinished network one.
 ## Defects found *during* Phase 3, and how they were fixed
 
 These are not audit findings; they are bugs in the Phase 3 code itself, found
-before it produced any published number. Recorded here and in `VERIFICATION.md`
-because two of the three would have failed silently.
+before any of it produced a published number. Recorded here and in
+`VERIFICATION.md` because three of the four would have failed silently.
+
+**F4 — the safety wrapper enforced nothing.** The worst of them.
+`SafetyConstrainedController` reset a phase's starvation clock when the wrapped
+controller *asked* for that phase, but sumo-rl refuses a phase change while the
+current green is younger than `yellow + min_green`, so a request is often not a
+service. Measured on one `balanced` hour: the phase asked for was not the phase
+then green on 573 of 720 decisions; the wrapper's own worst clock read 175 s
+against its 200 s bound and fired zero overrides, while the junction left a
+movement unserved for 245 s. `greedy-queue+safe` produced a trace bit-identical
+to `greedy-queue` — which is what a wrapper that never fires looks like, and
+had been read as the policy already being safe. Fixed by advancing the clocks
+from `signal.green_phase`, the phase actually showing green. The unconstrained
+policies turn out to violate the bound on every scenario checked (245-340 s);
+wrapped they come to 210-215 s, at a cost under half a second of mean waiting
+time. Addendum E's conclusion is now derived from the traces instead of
+asserted in prose.
 
 **F1 — the safety wrapper could not wrap a fixed-time plan.**
 `SafetyConstrainedController.on_episode_start` read `len(signal.green_phases)`.

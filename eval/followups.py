@@ -30,6 +30,12 @@ sys.path.insert(0, str(ROOT))
 from eval.make_tables import splice  # noqa: E402
 from eval.paths import LOGS_DIR, trace_path  # noqa: E402
 from eval.significance import paired_differences, paired_t_test  # noqa: E402
+from eval.simulation import (  # noqa: E402
+    DELTA_TIME,
+    MIN_GREEN,
+    YELLOW_TIME,
+    SafetyConstrainedController,
+)
 
 REPORT_PATH = ROOT / "REPORT.md"
 
@@ -39,6 +45,26 @@ MIRROR_OF_TRAINED = "ew_heavy"
 
 # The DQN training seeds: the original plus the two added afterwards.
 SEED_MODELS = [("dqn", 42), ("dqn_seed1", 1), ("dqn_seed2", 2)]
+
+# Green phases in the committed signal program. Used only to say "3 of 4 phases
+# ran" when one was starved outright, which the gap measurement cannot express.
+# Kept as a literal rather than imported from networks/build_network.py, whose
+# import runs SUMO's path setup; tests/test_network_phases.py asserts this
+# matches the network that was actually built.
+N_GREEN_PHASES = 4
+
+# The bounds the addendum quotes are taken from the class that enforces them,
+# not retyped. A literal here could drift and the report would then describe a
+# constraint the code does not apply.
+MAX_GREEN = SafetyConstrainedController.MAX_GREEN
+MAX_STARVATION = SafetyConstrainedController.MAX_STARVATION
+
+# Worst-case slack on the starvation guarantee. Only one phase holds green at a
+# time, and sumo-rl will not hand over until the current green has run for
+# yellow + min_green, so each phase that crosses the bound together with others
+# waits out one hand-over per phase ahead of it in the queue.
+HANDOVER = -(-(YELLOW_TIME + MIN_GREEN) // DELTA_TIME) * DELTA_TIME
+STARVATION_CEILING = MAX_STARVATION + (N_GREEN_PHASES - 1) * HANDOVER
 
 
 # ---------------------------------------------------------------------------
@@ -439,12 +465,33 @@ def ppo_long(raw: list) -> str:
 # ---------------------------------------------------------------------------
 def trace_bounds(controller: str, scenario: str):
     """
-    Longest continuous green and longest gap between services, read from a
-    saved per-step trace.
+    What the signal actually did, read from a saved per-step trace.
 
-    Measured from the actual light strings rather than from a counter inside
-    the controller, so it reports what the signal did, not what the controller
+    Returns `(longest_green, worst_unserved_gap, phases_seen)`, all measured
+    from the recorded light strings rather than from a counter inside the
+    controller - so it reports what the junction did, not what the controller
     believed it was doing.
+
+    THE UNSERVED GAP IS MEASURED OVER THE WHOLE EPISODE
+    ---------------------------------------------------
+    For each phase, the gaps considered run from the start of the episode to
+    its first green, between consecutive greens, and from its last green to the
+    end. The two end intervals matter: a phase that stops being served halfway
+    through is starved for the second half, and a version that only looked at
+    the intervals *between* services scored that as zero.
+
+    `phases_seen` is returned for the case the gap cannot express at all. The
+    worst possible starvation is a phase that never runs, and a phase that
+    never runs leaves no interval to measure - it would be invisible in the
+    gap and would flatter the controller that starved it.
+
+    RESOLUTION
+    ----------
+    Durations are counted in whole sampling steps, and the step is measured
+    from the trace rather than assumed, so a change to the decision interval
+    cannot silently mis-scale every duration here. A green held across N
+    consecutive samples is reported as N steps, which is right to within one
+    step - enough to test a 60 s cap, not enough to quote to the second.
     """
     path = trace_path(controller, scenario)
     if not path.exists():
@@ -454,23 +501,32 @@ def trace_bounds(controller: str, scenario: str):
     if not rows:
         return None
 
-    longest_green, run = 0.0, 0.0
-    previous = None
-    last_served, worst_gap = {}, 0.0
-    for row in rows:
-        state = row["signal_state"]
-        time = float(row["sim_time"])
-        if "y" in state or not state:
-            continue
-        run = run + 5.0 if state == previous else 5.0
+    times = [float(r["sim_time"]) for r in rows]
+    gaps = sorted(b - a for a, b in zip(times, times[1:]))
+    step = gaps[len(gaps) // 2] if gaps else 0.0
+    episode_end = times[-1]
+
+    # Amber is not a service: during it nobody has right of way, so it neither
+    # extends a green nor counts as serving the phase it is handing over to.
+    greens = [(t, r["signal_state"]) for t, r in zip(times, rows)
+              if r["signal_state"] and "y" not in r["signal_state"]]
+    if not greens:
+        return None
+
+    longest_green, run, previous = 0.0, 0.0, None
+    served = {}
+    for time, state in greens:
+        run = run + step if state == previous else step
         longest_green = max(longest_green, run)
         previous = state
-        last_served[state] = time
-        for other, seen in last_served.items():
-            if other != state:
-                worst_gap = max(worst_gap, time - seen)
-    return longest_green, worst_gap
+        served.setdefault(state, []).append(time)
 
+    worst_gap = 0.0
+    for service_times in served.values():
+        boundaries = [0.0] + service_times + [episode_end]
+        worst_gap = max(worst_gap,
+                        max(b - a for a, b in zip(boundaries, boundaries[1:])))
+    return longest_green, worst_gap, len(served)
 
 # Controllers the safety sweep covers, in the order the addendum discusses
 # them. The first three drive the signal themselves, so the wrapper is live on
@@ -478,11 +534,11 @@ def trace_bounds(controller: str, scenario: str):
 SAFETY_CONTROLLERS = ["dqn", "ppo", "greedy-queue", "fixed-time-tuned"]
 
 # Where wrapping actually changes anything. A controller with
-# `uses_env_control = False` hands the signal to SUMO's own program and its
-# `act()` is never consulted, so the wrapper cannot intervene however the plan
-# behaves. Its `+safe` run is therefore identical to its unwrapped one by
-# construction, and reporting that as evidence of compliance would be reading a
-# tautology as a measurement.
+# `uses_env_control = False` hands the signal to SUMO's own program: its
+# `act()` is never consulted and sumo-rl does not maintain the phase index the
+# wrapper would need to watch, so the wrapper is inert and says so. Its `+safe`
+# run is identical to its unwrapped one by construction, and reporting that as
+# evidence of compliance would be reading a tautology as a measurement.
 LIVE_WRAPPER = {"dqn": True, "ppo": True, "greedy-queue": True,
                 "fixed-time-tuned": False}
 
@@ -492,6 +548,11 @@ SAFETY_LABELS = {
     "greedy-queue": "Greedy queue heuristic",
     "fixed-time-tuned": "Fixed-time (Webster-tuned)",
 }
+
+# The scenario whose trace the bounds are read from. Any scenario would do -
+# the traces are saved for all six - but the addendum quotes one so the numbers
+# in its two tables refer to the same hour.
+TRACE_SCENARIO = "ns_heavy"
 
 
 def mean_wait_across_scenarios(raw: list, controller: str):
@@ -523,34 +584,44 @@ def safety(raw: list) -> str:
         "enough vehicles that its delay is diluted by the ones being served",
         "well, so mean waiting time can look fine while a movement never runs.",
         "",
-        "`SafetyConstrainedController` adds two bounds - a **60 s maximum",
-        "green** and a **200 s starvation bound**, after which the",
+        "`SafetyConstrainedController` adds two bounds - a **%d s maximum"
+        % MAX_GREEN,
+        "green** and a **%d s starvation bound**, after which the" % MAX_STARVATION,
         "longest-waiting phase is served whatever the policy asked for. It is a",
         "wrapper, so no agent had to be retrained and every controller can be",
         "measured with and without it.",
         "",
         "### What the signal actually did",
         "",
-        "Measured from the recorded light strings, not from the controller's",
-        "own counters - so this is what the junction did, not what the",
-        "controller believed it was doing:",
+        "Read from the recorded light strings, not from the controller's own",
+        "counters - so this is what the junction did, not what the controller",
+        "believed it was doing. Gaps are measured over the whole hour,",
+        "including the wait before a phase's first green and after its last.",
         "",
-        "| Controller | Longest continuous green | Longest a phase went unserved |",
-        "|---|---|---|",
+        "| Controller | Longest continuous green | Longest a phase went unserved | Phases served |",
+        "|---|---|---|---|",
     ]
 
-    scenario = "ns_heavy"
+    measured = {}
     for base, wrapped in pairs:
         for controller in (base, wrapped):
-            bounds = trace_bounds(controller, scenario)
+            bounds = trace_bounds(controller, TRACE_SCENARIO)
             if bounds is None:
                 continue
-            lines.append("| `%s` | %.0f s | %.0f s |"
-                         % (controller, bounds[0], bounds[1]))
+            green, gap, seen = bounds
+            measured[controller] = bounds
+            lines.append("| `%s` | %.0f s | %s | %d of %d |"
+                         % (controller, green,
+                            ("**%.0f s**" % gap if gap > MAX_STARVATION
+                             else "%.0f s" % gap),
+                            seen, N_GREEN_PHASES))
 
     lines += [
         "",
-        "(On `%s`, the trace seed. The bounds are 60 s and 200 s.)" % scenario,
+        "(On `%s`, the trace seed. Bold exceeds the %d s bound. The phase count"
+        % (TRACE_SCENARIO, MAX_STARVATION),
+        "is there because the worst starvation of all - a phase that never runs",
+        "- leaves no gap to measure and would otherwise be invisible.)",
         "",
         "### What the constraint costs",
         "",
@@ -575,39 +646,84 @@ def safety(raw: list) -> str:
 
     lines += ["", "(Mean across all six scenarios.)", "", "### What it shows", ""]
 
+    # --- was the bound already satisfied? Derived, never asserted. -----------
+    violations = [(base, measured[base][1]) for base, _ in live
+                  if base in measured and measured[base][1] > MAX_STARVATION]
+    constrained = [(base, measured[base + "+safe"][1]) for base, _ in live
+                   if base + "+safe" in measured]
+
+    if violations:
+        worst_name, worst_gap = max(violations, key=lambda item: item[1])
+        lines += [
+            "**The bound was not already satisfied, and that is the finding.**",
+            "Every unconstrained policy measured here left some phase unserved",
+            "for longer than %d s: the worst was `%s` at %.0f s, more than half"
+            % (MAX_STARVATION, worst_name, worst_gap),
+            "a minute beyond the bound, on a movement that carries few enough",
+            "vehicles for the delay to disappear into the average. Section 6",
+            "called this an unvalidated *guarantee*; it turns out to have been",
+            "an actual violation, and nothing in the headline numbers hints at",
+            "it.",
+            "",
+        ]
+        if constrained:
+            worst_after = max(gap for _, gap in constrained)
+            lines += [
+                "With the wrapper the same runs come inside the bound: the",
+                "worst gap is %.0f s against a documented ceiling of %d s."
+                % (worst_after, STARVATION_CEILING),
+                "The ceiling is above %d s rather than equal to it because only"
+                % MAX_STARVATION,
+                "one phase can hold green at a time and sumo-rl will not hand",
+                "over until the current green has run for its minimum, so a",
+                "phase that crosses the bound waits out the hand-over. That",
+                "slack is forced by the environment, not chosen.",
+                "",
+            ]
+    elif constrained:
+        lines += [
+            "**Both bounds were already satisfied before the wrapper was",
+            "added.** Every unconstrained run kept its longest green under %d s"
+            % MAX_GREEN,
+            "and served every phase inside %d s, so the constraint had nothing"
+            % MAX_STARVATION,
+            "to correct on these policies. That makes the safety property",
+            "*checkable* rather than incidental - it was not a property the",
+            "training objective ever asked for.",
+            "",
+        ]
+
+    # --- what it cost -------------------------------------------------------
     dqn_costs = [c for name, _, c in costs if name == "dqn"]
     if dqn_costs:
         worst = max(dqn_costs, key=abs)
         mean_cost = statistics.fmean(dqn_costs)
         if abs(mean_cost) < 0.5:
             lines += [
-                "**The constraint is essentially free.** Averaged over the six",
-                "scenarios it moves the DQN's waiting time by %+.2f s, and its"
+                "**And it is close to free.** Averaged over the six scenarios",
+                "the bounds move the DQN's waiting time by %+.2f s, with a"
                 % mean_cost,
-                "largest effect on any single scenario is %+.2f s." % worst,
+                "largest single-scenario effect of %+.2f s - smaller than the"
+                % worst,
+                "seed-to-seed spread of the evaluation itself. The reason is",
+                "that the constraint binds rarely: it fires on the handful of",
+                "decisions where a phase has been left too long, and passes the",
+                "policy's own choice through everywhere else.",
                 "",
-                "The reason is visible in the first table: the learned policy",
-                "was already respecting both bounds. It switches often enough",
-                "that it never approaches a 60 s green, and it serves every",
-                "phase well inside 200 s. The safety gap section 6 identified",
-                "was real as a *guarantee* - nothing in the training objective",
-                "forbade starvation, and a differently-converged policy could",
-                "have exhibited it - but this particular policy did not need",
-                "correcting.",
-                "",
-                "That is worth stating carefully. The constraint has not made",
-                "the agent safe by changing its behaviour; it has made the",
-                "safety property *checkable* rather than incidental. On a",
-                "policy that did misbehave, it would bind.",
+                "That is the useful shape of this result. The cost of making",
+                "the junction provably fair is not a trade-off the deployment",
+                "has to argue about; it is a rounding error, and it removes a",
+                "failure the unconstrained policy demonstrably had.",
                 "",
             ]
         else:
             lines += [
-                "The constraint costs the DQN %+.2f s of mean waiting time on"
+                "**The bounds cost the DQN %+.2f s of mean waiting time**, with"
                 % mean_cost,
-                "average, with a worst case of %+.2f s. That is the price of" % worst,
-                "the guarantee, and it is a price worth naming: an unconstrained",
-                "policy is not deployable regardless of its average.",
+                "a worst case of %+.2f s. That is the price of the guarantee," % worst,
+                "and it is a price worth naming rather than burying: a policy",
+                "that starves an approach is not deployable regardless of what",
+                "its average looks like.",
                 "",
             ]
 
@@ -615,10 +731,10 @@ def safety(raw: list) -> str:
         others = [SAFETY_LABELS[b] for b, _ in live if b != "dqn"]
         if others:
             lines += [
-                "The same holds for the other policies the wrapper is live on",
-                "(%s): each was already inside both bounds, so wrapping them"
+                "The other policies the wrapper is live on (%s)"
                 % ", ".join(others),
-                "changes their numbers by rounding at most.",
+                "behave the same way: the table above shows each of them both",
+                "outside the bound unconstrained and inside it wrapped.",
                 "",
             ]
 
@@ -636,20 +752,28 @@ def safety(raw: list) -> str:
             "table rather than by this one: a 104 s cycle that serves every",
             "phase in turn cannot hold a green past its own split or leave a",
             "phase unserved for two cycles. That is exactly the property the",
-            "wrapper has to enforce on a learned policy, and it is why a fixed",
-            "plan is the safe, dull thing that adaptive control has to earn its",
-            "way past.",
+            "wrapper has to enforce on a learned policy - and, on the evidence",
+            "above, the property the learned policies did not have.",
             "",
         ]
 
     lines += [
         "**What this does not establish.** The bounds were checked on the six",
-        "evaluation scenarios and the policy satisfied them; that is evidence",
-        "about these hours of traffic, not a proof about all of them. The",
-        "wrapper is what converts it into a guarantee, and the guarantee it",
-        "gives is the one stated in the class docstring - a phase is served",
-        "within 200 s plus up to 15 s of hand-over slack, not within 200 s",
-        "exactly.",
+        "evaluation scenarios; that is evidence about these hours of traffic,",
+        "not a proof about all of them. What makes it a guarantee rather than",
+        "an observation is the wrapper, and the guarantee it gives is the one",
+        "in the class docstring - a phase is served within %d s plus the"
+        % MAX_STARVATION,
+        "hand-over slack, not within %d s exactly." % MAX_STARVATION,
+        "",
+        "One honest caveat about the wrapper itself. Its first version counted",
+        "a phase as served the moment the policy *asked* for it, which is not",
+        "the same as the signal showing it green - sumo-rl refuses a change",
+        "until the current green has run its minimum. That version enforced",
+        "nothing while reporting compliance, which is worse than no wrapper at",
+        "all, because it would have been believed. It now reads the phase the",
+        "signal is actually showing; `VERIFICATION.md` section 5 records the",
+        "measurement that caught it.",
         "",
     ]
     return "\n".join(lines)

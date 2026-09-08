@@ -138,9 +138,10 @@ def test_a_trace_written_by_the_evaluation_is_found_by_the_addendum(
     bounds = followups.trace_bounds(controller, "ns_heavy")
 
     assert bounds is not None, "the addendum could not find the trace"
-    longest_green, worst_gap = bounds
+    longest_green, worst_gap, phases_seen = bounds
     assert longest_green == pytest.approx(40.0)
     assert worst_gap > 0
+    assert phases_seen == 2, "the synthetic trace shows exactly two phases"
 
 
 def test_a_missing_trace_is_still_reported_as_missing(tmp_path, monkeypatch):
