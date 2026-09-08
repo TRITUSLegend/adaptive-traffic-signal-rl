@@ -80,9 +80,9 @@ Every step is a standalone script. Run them in this order for a fresh clone.
 | 2 | `python networks/generate_routes.py --mixed` | Generates 60 hours of random traffic across 6 demand scenarios | seconds |
 | 3 | `python smoke_test.py` | Verifies SUMO, the packages, and a live simulation | ~10 s |
 | 4 | `python baseline/run_baseline.py` | Runs the fixed-time baselines and reports their metrics | ~5 min |
-| 5 | `python agent/train_dqn.py` | Trains the DQN agent | ~45 min |
+| 5 | `python agent/train_dqn.py` | Trains the DQN agent | ~46 min |
 | 6 | `python agent/train_ppo.py` | Trains the PPO agent (optional comparison) | ~26 min |
-| 7 | `python eval/evaluate.py` | Runs every controller on every scenario, 5 seeds each | ~25 min |
+| 7 | `python eval/evaluate.py` | Runs every controller on every scenario, 5 seeds each | ~26 min |
 | 8 | `python eval/make_plots.py` | Draws the figures used in the report | seconds |
 | 9 | `python eval/make_tables.py --write` | Regenerates the results tables in REPORT.md | seconds |
 | 10 | `python -m pytest` | Runs the test suite | ~2 s |
@@ -205,10 +205,11 @@ This matters more than any individual number, so it is worth stating plainly:
 ## Tests
 
 ```bash
-python -m pytest
+python -m pytest          # the test suite
+python -m ruff check .    # lint; the rule set is pinned in pyproject.toml
 ```
 
-The suite is fast (about two seconds) and is aimed at the places where a bug
+The suite is fast (about three seconds) and is aimed at the places where a bug
 would be *quiet* rather than loud - a number that is wrong but plausible:
 
 - **Route determinism.** The seed must be a fixed function of scenario and

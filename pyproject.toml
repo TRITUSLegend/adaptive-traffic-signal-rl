@@ -28,9 +28,25 @@ line-length = 88
 target-version = "py310"
 
 [tool.ruff.lint]
+# The rule set is pinned explicitly rather than left to ruff's default, because
+# that default has widened between ruff releases: running `ruff check` with a
+# newer binary was reporting 282 findings against a codebase that had none, all
+# but one of them stylistic. An unpinned linter selection is the same class of
+# problem as an unpinned dependency - the command stops meaning the same thing
+# from one machine to the next.
+#
+# E4/E7/E9 are the pycodestyle errors that are actually errors, F is pyflakes
+# (undefined names, unused imports - the ones that catch bugs), W is whitespace.
+select = ["E4", "E7", "E9", "F", "W"]
+
 # E501 is off because several docstrings quote SUMO phase strings and command
 # lines that are clearer left intact than wrapped.
 ignore = ["E501"]
+
+# Not selected, deliberately: UP031 (printf-string-formatting). This project
+# uses %-formatting consistently, including inside the generators that write
+# REPORT.md, and converting ~180 call sites during a verification pass would
+# risk a silent formatting change in a published table to gain nothing.
 
 [tool.ruff.lint.per-file-ignores]
 # Every entry point has to configure SUMO's import paths before importing

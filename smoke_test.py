@@ -145,7 +145,7 @@ def check_rl_env() -> str:
         observation, _ = env.reset()
         total = 0.0
         for _ in range(10):
-            observation, reward, terminated, truncated, _ = env.step(
+            _, reward, terminated, truncated, _ = env.step(
                 env.action_space.sample())
             total += float(reward)
             if terminated or truncated:

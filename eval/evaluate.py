@@ -2,7 +2,7 @@
 Evaluation harness: run every controller on every scenario and tabulate the result.
 
 Run:
-    python eval/evaluate.py                          # everything (~20 min)
+    python eval/evaluate.py                          # everything (~26 min)
     python eval/evaluate.py --scenarios ns_heavy     # one scenario
     python eval/evaluate.py --controllers fixed-time dqn
     python eval/evaluate.py --seeds 100 101          # fewer repeats, faster

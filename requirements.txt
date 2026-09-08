@@ -44,9 +44,16 @@ torch==2.13.0               # neural network backend used by stable-baselines3
 # --- figures ----------------------------------------------------------------
 matplotlib==3.11.1          # the only plotting library this project imports
 
-# --- tests ------------------------------------------------------------------
-# Run them with:  python -m pytest
+# --- tests and linting ------------------------------------------------------
+# Run them with:  python -m pytest   and   python -m ruff check .
+#
+# Both are development tools rather than runtime requirements, and both are
+# pinned for the same reason the runtime packages are: an unpinned linter
+# widens its own default rule set between releases, so "ruff check passes"
+# stops being a statement anyone else can reproduce. The rules this project
+# selects are written out explicitly in pyproject.toml.
 pytest==9.1.1
+ruff==0.16.6
 
 # --- pinned transitive dependencies -----------------------------------------
 # Nothing in this repository imports these directly; both are hard runtime

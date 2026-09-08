@@ -19,7 +19,6 @@ enforced rather than merely implemented.
 
 from __future__ import annotations
 
-import csv
 import re
 import sys
 from pathlib import Path

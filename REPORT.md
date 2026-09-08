@@ -432,7 +432,7 @@ python smoke_test.py                     # verify the toolchain
 python baseline/run_baseline.py          # fixed-time baselines      (~5 min)
 python agent/train_dqn.py                # train the DQN             (~46 min)
 python agent/train_ppo.py                # train PPO                 (~26 min)
-python eval/evaluate.py                  # compare everything        (~25 min)
+python eval/evaluate.py                  # compare everything        (~26 min)
 python eval/make_plots.py                # figures
 python eval/make_tables.py --write       # the tables in this report
 python -m pytest                         # the test suite            (~2 s)

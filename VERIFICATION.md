@@ -9,6 +9,10 @@ observation space, the experimental design - and none of those were touched.
 Every change here is to correctness of tooling, reproducibility, or accuracy of
 documentation.
 
+Sections 1 to 4 cover the nine defects the audit raised. Section 5 covers three
+more found in the follow-up work itself, before it produced a published number;
+they are here because two of the three would have failed silently.
+
 **Dates.** Remediation 7-8 September 2026, against the tree tagged
 `pre-remediation-audited`.
 
@@ -45,7 +49,7 @@ from the re-run data, which is the same statement made from the other end.
 |---|---|---|---|
 | D1 | Route generation not reproducible | Critical | **Fixed & verified** |
 | D2 | No version control | Critical | **Fixed** |
-| D3 | No automated tests | Serious | **Fixed** — 171 tests |
+| D3 | No automated tests | Serious | **Fixed** — 250 tests |
 | D4 | Report's provenance claim was false | Serious | **Fixed & enforced** |
 | D5 | `MIN_GREEN` defined twice | Moderate | **Fixed** |
 | D6 | Honesty metric failed silently to zero | Moderate | **Fixed** |
@@ -113,17 +117,24 @@ pushed to, per instruction.
 
 ### D3 — No automated tests
 
-**171 tests** in `tests/`, all passing in 0.61 s:
+**250 tests** in `tests/`, all passing in 1.3 s:
 
 | Module | Tests | Covers |
 |---|---|---|
 | `test_webster.py` | 71 | Green allocation, delay formula, per-scenario plans |
 | `test_significance.py` | 27 | The hand-rolled t and Wilcoxon distributions |
-| `test_route_determinism.py` | 22 | D1, seeding, arrival process, held-out seeds |
+| `test_route_determinism.py` | 26 | D1, seeding, arrival process, held-out seeds |
+| `test_evaluate_merge.py` | 25 | Append-mode merge, tagged and `+safe` controller names |
 | `test_network_phases.py` | 20 | Phase strings, exclusivity, amber derivation |
+| `test_followups.py` | 19 | The addendum generators: branch choice and table shape |
+| `test_output_naming.py` | 19 | F2, F3 — trace filenames, generated-table guards |
+| `test_safety_constraints.py` | 18 | F1 — maximum green and the starvation bound |
 | `test_report_matches_data.py` | 16 | D4, report-to-CSV provenance |
 | `test_tripinfo.py` | 9 | Trip parsing, survivorship bias |
-| `test_evaluate_merge.py` | 6 | Append-mode merge semantics |
+
+The count grew from the 171 the audit remediation ended with as the follow-up
+work landed; the F-series defects in section 5 are what the newest modules were
+written against.
 
 **Proof the tests actually test something.** Five deliberate breaks were
 applied to an isolated copy of the repo; every one was caught, and the suite
@@ -225,13 +236,23 @@ is explained by a comment. Not worth the risk during a remediation pass.
 | Both models load and predict | **pass** — DQN→2, PPO→1 on a fixed probe; both 21→64→64→4 |
 | Full 150-episode sweep re-run | **pass** — 26.4 min |
 | Sweep reconciled against original | **pass** — 150/150 bit-for-bit identical |
-| Test suite | **171 passed** |
+| Test suite | **250 passed** in 1.3 s |
 | Tests proven to catch breaks | **pass** — 5/5 mutations caught |
 | Route determinism, 3 fresh processes | **pass** — identical sha256 |
 | Overwrite guard refuses and leaves files intact | **pass** — exit 1, `git status` clean |
 | `REPORT.md` regenerates byte-identically | **pass** — md5 unchanged |
 | Report numbers trace to the CSVs | **pass** — 30 wait cells checked by test |
 | Figures regenerated | **pass** — 4 PNGs from the re-run data |
+
+Re-checked after the section 5 fixes, because a fix that quietly moves a
+published number is worse than the bug it removes:
+
+| Check | Result |
+|---|---|
+| Sections 4-5 of `REPORT.md` after `make_tables.py --write` | **pass** — byte-identical |
+| The four figures after `make_plots.py` | **pass** — byte-identical (`git status` clean) |
+| Smoke test | **pass** — 5/5 |
+| Lint | **pass** — `ruff check .` clean, rule set pinned |
 
 ---
 
@@ -268,16 +289,139 @@ every row comes from one fresh sweep. Zero numeric values differ.
 
 ---
 
-## 5. How to re-verify
+## 5. Defects found in the follow-up work itself
+
+These are not audit findings. They are bugs in the Phase 3 code — the extra
+training seeds, the mixed-demand agent, the longer PPO run and the safety
+wrapper — caught before any of it produced a published number. They are
+recorded here rather than quietly fixed because two of the three would have
+failed *silently*, which is the failure mode this whole document exists to
+argue against.
+
+| ID | Defect | Would have | Status |
+|---|---|---|---|
+| F1 | Safety wrapper crashed on a fixed-time plan | Blocked one row entirely | **Fixed & tested** |
+| F2 | Trace filename built three ways, two disagreed | Published a short table | **Fixed & tested** |
+| F3 | Generated table looked up an unknown controller | Crashed the last step | **Fixed & tested** |
+
+### F1 — the safety wrapper could not wrap a fixed-time plan
+
+`SafetyConstrainedController.on_episode_start` read
+`len(signal.green_phases)`. sumo-rl builds that list only when it is driving
+the signal itself; under a fixed-time plan SUMO runs the program and the
+attribute does not exist.
+
+```
+AttributeError: 'TrafficSignal' object has no attribute 'green_phases'.
+  eval/simulation.py:399  in on_episode_start
+```
+
+So `dqn+safe` ran perfectly and `fixed-time-tuned+safe` could not be evaluated
+at all — a shape of bug that only shows up on the controller nobody tried
+first. Fixed by reading `num_green_phases`, which sumo-rl publishes in both
+modes and is the quantity actually wanted.
+
+This is the loud one of the three: it raised. It is recorded because of what
+the fix had to guard. The stub in `tests/test_safety_constraints.py` now
+deliberately publishes `num_green_phases` and **not** `green_phases`, so all
+18 tests in that module exercise the fixed-time shape, and
+`test_the_wrapper_starts_on_a_signal_sumo_is_driving` asserts the absence
+explicitly — a stub carrying both attributes would have passed either way and
+proved nothing.
+
+### F2 — the trace filename was built in three places, and two disagreed
+
+`eval/evaluate.py` wrote the per-episode traces; `eval/make_plots.py` and
+`eval/followups.py` read them back. Each built the filename itself. They agreed
+until the `+safe` suffix arrived:
+
+```
+written by evaluate.py :  trace_greedy_queue+safe_ns_heavy.csv
+sought by followups.py :  trace_greedy_queue_safe_ns_heavy.csv
+```
+
+Nothing raised. A missing trace is a legitimate state — most controllers have
+no trace for most scenarios — so `trace_bounds` returns `None` and the row is
+skipped. Addendum E would have been published with the constrained controllers
+**missing from the one table that exists to show them**, and the table would
+have looked complete.
+
+Fixed by `eval/paths.py`: one naming function, imported by all three scripts.
+`tests/test_output_naming.py` checks the contract from both ends — identity of
+the function object across the three modules, so a fourth copy cannot be
+reintroduced, and a round trip that writes a trace with `evaluate.write_trace`
+and requires `followups.trace_bounds` to find it.
+
+### F3 — a generated table would have crashed on the new controller names
+
+`insertion_backlog_table` iterated every controller in `evaluation_raw.csv` and
+looked each one up in `LABELS`, which knows only the report's five. Once
+`dqn_seed2`, `dqn_mixed` or `dqn+safe` appeared in that file with a non-zero
+insertion backlog — which the saturated scenarios make likely — it would have
+raised `KeyError` at `make_tables.py --write`, the very last step of the
+pipeline, after several hours of training and evaluation had already run.
+
+The table is now restricted to the five controllers it describes, like every
+other generated table in the report. That is also the right answer on the
+merits: the addendum variants belong in their own addendum, not in a section 5
+table a reader would try to match against the five-row comparison above it.
+
+### Two further corrections found the same way
+
+**The PPO addendum judged a closed gap on `abs()` of a signed gap.** If the
+longer run had overtaken the DQN, the gap would have gone negative and the
+generator would have reported a large *remaining* deficit — the opposite
+conclusion, stated confidently. The comparison is now on signed values, an
+overtake gets its own sentence, and `tests/test_followups.py` covers all three
+branches.
+
+**Addendum D's table had a five-column header over a four-column divider**,
+which renders as a mangled table in every markdown viewer. Found by a test that
+checks every generated table for a header/divider/row column-count match, not
+by reading the output.
+
+### Why `fixed-time-tuned+safe` is reported as a null
+
+Related to F1, and worth stating because the honest answer is less impressive
+than the convenient one. A fixed-time plan is run by SUMO's own program, so the
+wrapper's `act()` is never consulted and its `+safe` run is bit-identical to
+the unwrapped one **by construction**. Confirmed directly:
+
+```
+fixed-time-tuned+safe  wait 31.23  switches 119  throughput 1746
+fixed-time-tuned       wait 31.23  switches 119  throughput 1746
+```
+
+Presenting that zero as evidence that the plan satisfies the bounds would be
+reading a tautology as a measurement. The run is still done and still reported,
+labelled as an inert wrapper, and the plan's actual compliance is established
+from its recorded light strings instead.
+
+---
+
+## 6. How to re-verify
 
 ```bash
-python -m pytest                     # 171 tests, ~1 s
+python -m pytest                     # 250 tests, ~1 s
+python -m ruff check .               # lint, rule set pinned in pyproject.toml
 python smoke_test.py                 # toolchain, 5 checks
 python eval/evaluate.py              # ~26 min; must reproduce the CSVs exactly
 python eval/make_tables.py --write   # must leave REPORT.md byte-identical
-python eval/make_plots.py            # four figures
+python eval/make_plots.py            # four figures, byte-identical
 ```
 
-The third and fourth commands are the strong ones: if the evaluation is
-re-run and the report's tables change, something has moved that should not
+The last three are the strong ones: if the evaluation is re-run and the
+report's tables or the figures change, something has moved that should not
 have.
+
+The addenda regenerate from the same data and are also idempotent:
+
+```bash
+python eval/significance.py --write  # addendum A
+python eval/followups.py --write     # addenda B-E
+```
+
+Neither touches sections 1-9; each rewrites only its own marked region, and
+`eval/make_tables.py --write` afterwards must still leave sections 4 and 5
+byte-identical. That is the check that an addendum has not quietly moved a
+number in the original report.
