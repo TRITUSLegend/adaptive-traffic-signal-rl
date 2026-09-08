@@ -750,6 +750,19 @@ def safety(raw: list) -> str:
                 "failure the unconstrained policy demonstrably had.",
                 "",
             ]
+            if violations:
+                lines += [
+                    "It also settles the question the violation above",
+                    "immediately raises: whether section 4's headline was won",
+                    "by starving a movement. It was not. Serving that movement",
+                    "on schedule costs %+.2f s on average, so the agent's"
+                    % mean_cost,
+                    "advantage survives the constraint essentially intact - the",
+                    "starvation was a side effect of an objective that never",
+                    "mentioned fairness, not the mechanism the result rested",
+                    "on.",
+                    "",
+                ]
         else:
             lines += [
                 "**The bounds cost the DQN %+.2f s of mean waiting time**, with"

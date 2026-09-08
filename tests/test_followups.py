@@ -518,3 +518,27 @@ def test_the_binding_bound_is_named_when_only_starvation_fails(logs):
 
     assert "starvation bound that binds" in text
     assert "maximum green was not" not in text
+
+
+def test_a_violation_that_is_cheap_to_fix_says_the_headline_survives(logs):
+    """
+    A reader who has just been told the agent starved a movement will ask
+    whether that is how it won. The section has to answer, and only from the
+    cost it measured - which is why the sentence lives inside the branch where
+    both a violation and a small cost are established.
+    """
+    write_safety_traces(logs, followups.MAX_STARVATION + 120, 30)
+
+    text = followups.safety(safety_raw(cost=0.0))
+
+    assert "won" in text and "by starving a movement" in text
+    assert "It was not." in text
+
+
+def test_a_clean_run_does_not_claim_the_headline_was_questioned(logs):
+    """No violation, no question to answer - the paragraph must not appear."""
+    write_safety_traces(logs, 30, 30)
+
+    text = followups.safety(safety_raw(cost=0.0))
+
+    assert "by starving a movement" not in text
