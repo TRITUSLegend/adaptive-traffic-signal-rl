@@ -646,9 +646,16 @@ def safety(raw: list) -> str:
 
     lines += ["", "(Mean across all six scenarios.)", "", "### What it shows", ""]
 
-    # --- was the bound already satisfied? Derived, never asserted. -----------
+    # --- were the bounds already satisfied? Derived, never asserted. --------
+    # Both are checked. An earlier version of this section stated compliance
+    # in prose whatever the traces showed, which is how a wrapper that
+    # enforced nothing came to be described as one that had nothing to do.
     violations = [(base, measured[base][1]) for base, _ in live
                   if base in measured and measured[base][1] > MAX_STARVATION]
+    green_violations = [(base, measured[base][0]) for base, _ in live
+                        if base in measured and measured[base][0] > MAX_GREEN]
+    longest_green_seen = max((measured[base][0] for base, _ in live
+                              if base in measured), default=None)
     constrained = [(base, measured[base + "+safe"][1]) for base, _ in live
                    if base + "+safe" in measured]
 
@@ -666,6 +673,18 @@ def safety(raw: list) -> str:
             "it.",
             "",
         ]
+        if not green_violations and longest_green_seen is not None:
+            lines += [
+                "It is the starvation bound that binds, not the maximum green:",
+                "the longest continuous green measured on any of these runs is",
+                "%.0f s against a %d s cap. That is the asymmetry the wrapper"
+                % (longest_green_seen, MAX_GREEN),
+                "exists for. A policy that refuses to let go is easy to notice;",
+                "one that keeps switching briskly between the three busy phases",
+                "and quietly drops the fourth looks, by every aggregate in this",
+                "report, like a policy that is working well.",
+                "",
+            ]
         if constrained:
             worst_after = max(gap for _, gap in constrained)
             lines += [
@@ -680,16 +699,31 @@ def safety(raw: list) -> str:
                 "slack is forced by the environment, not chosen.",
                 "",
             ]
+    elif green_violations:
+        worst_name, worst_green = max(green_violations, key=lambda item: item[1])
+        lines += [
+            "**The starvation bound was met, but the maximum green was not.**",
+            "`%s` held one phase for %.0f s against a %d s cap. Every phase was"
+            % (worst_name, worst_green, MAX_GREEN),
+            "still served inside %d s, so nothing was starved outright - but a"
+            % MAX_STARVATION,
+            "signal that will not let go for a minute is not one a highway",
+            "authority would sign off, whatever its average delay.",
+            "",
+        ]
     elif constrained:
         lines += [
             "**Both bounds were already satisfied before the wrapper was",
-            "added.** Every unconstrained run kept its longest green under %d s"
-            % MAX_GREEN,
-            "and served every phase inside %d s, so the constraint had nothing"
+            "added.** No unconstrained run held a green past %d s%s, and none"
+            % (MAX_GREEN,
+               " (the longest was %.0f s)" % longest_green_seen
+               if longest_green_seen is not None else ""),
+            "left a phase unserved past %d s, so the constraint had nothing to"
             % MAX_STARVATION,
-            "to correct on these policies. That makes the safety property",
-            "*checkable* rather than incidental - it was not a property the",
-            "training objective ever asked for.",
+            "correct on these policies. That makes the safety property",
+            "*checkable* rather than incidental - it was never something the",
+            "training objective asked for, so a differently-converged policy",
+            "could well have lacked it.",
             "",
         ]
 

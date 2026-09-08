@@ -49,7 +49,7 @@ from the re-run data, which is the same statement made from the other end.
 |---|---|---|---|
 | D1 | Route generation not reproducible | Critical | **Fixed & verified** |
 | D2 | No version control | Critical | **Fixed** |
-| D3 | No automated tests | Serious | **Fixed** — 264 tests |
+| D3 | No automated tests | Serious | **Fixed** — 274 tests |
 | D4 | Report's provenance claim was false | Serious | **Fixed & enforced** |
 | D5 | `MIN_GREEN` defined twice | Moderate | **Fixed** |
 | D6 | Honesty metric failed silently to zero | Moderate | **Fixed** |
@@ -117,24 +117,32 @@ pushed to, per instruction.
 
 ### D3 — No automated tests
 
-**264 tests** in `tests/`, all passing in 1.3 s:
+**274 tests** in `tests/`, all passing in 1.3 s:
 
 | Module | Tests | Covers |
 |---|---|---|
 | `test_webster.py` | 71 | Green allocation, delay formula, per-scenario plans |
 | `test_significance.py` | 27 | The hand-rolled t and Wilcoxon distributions |
+| `test_followups.py` | 27 | The addendum generators: branch choice and table shape |
 | `test_route_determinism.py` | 26 | D1, seeding, arrival process, held-out seeds |
 | `test_evaluate_merge.py` | 25 | Append-mode merge, tagged and `+safe` controller names |
-| `test_network_phases.py` | 22 | Phase strings, exclusivity, amber derivation |
-| `test_followups.py` | 25 | The addendum generators: branch choice and table shape |
-| `test_output_naming.py` | 19 | F2, F3 — trace filenames, generated-table guards |
 | `test_safety_constraints.py` | 24 | F1, F4 — maximum green and the starvation bound |
+| `test_network_phases.py` | 22 | Phase strings, exclusivity, amber derivation |
+| `test_output_naming.py` | 19 | F2, F3 — trace filenames, generated-table guards |
 | `test_report_matches_data.py` | 16 | D4, report-to-CSV provenance |
 | `test_tripinfo.py` | 9 | Trip parsing, survivorship bias |
+| `test_documented_counts.py` | 8 | This table and these totals, against the suite |
 
 The count grew from the 171 the audit remediation ended with as the follow-up
 work landed; the F-series defects in section 5 are what the newest modules were
 written against.
+
+**This table is checked by running, not by reading.** It went stale twice -
+171 was still being quoted at 211 tests - so `test_documented_counts.py` now
+compares every count in this document and in the README against what pytest
+actually collects, and fails naming the file and the number to change. It is
+the same move the report's generated tables make, applied to its own
+evidence.
 
 **Proof the tests actually test something.** Five deliberate breaks were
 applied to an isolated copy of the repo; every one was caught, and the suite
@@ -236,7 +244,7 @@ is explained by a comment. Not worth the risk during a remediation pass.
 | Both models load and predict | **pass** — DQN→2, PPO→1 on a fixed probe; both 21→64→64→4 |
 | Full 150-episode sweep re-run | **pass** — 26.4 min |
 | Sweep reconciled against original | **pass** — 150/150 bit-for-bit identical |
-| Test suite | **264 passed** in 1.3 s |
+| Test suite | **274 passed** in 1.3 s |
 | Tests proven to catch breaks | **pass** — 5/5 mutations caught |
 | Route determinism, 3 fresh processes | **pass** — identical sha256 |
 | Overwrite guard refuses and leaves files intact | **pass** — exit 1, `git status` clean |
@@ -395,10 +403,10 @@ at all — a shape of bug that only shows up on the controller nobody tried
 first. Fixed by reading `num_green_phases`, which sumo-rl publishes in both
 modes and is the quantity actually wanted.
 
-This is the loud one of the three: it raised. It is recorded because of what
+This is the loud one of the four: it raised. It is recorded because of what
 the fix had to guard. The stub in `tests/test_safety_constraints.py` now
-deliberately publishes `num_green_phases` and **not** `green_phases`, so all
-18 tests in that module exercise the fixed-time shape, and
+deliberately publishes `num_green_phases` and **not** `green_phases`, so every
+test in that module exercises the fixed-time shape, and
 `test_the_wrapper_starts_on_a_signal_sumo_is_driving` asserts the absence
 explicitly — a stub carrying both attributes would have passed either way and
 proved nothing.
@@ -476,7 +484,7 @@ from its recorded light strings instead.
 ## 6. How to re-verify
 
 ```bash
-python -m pytest                     # 264 tests, ~1 s
+python -m pytest                     # 274 tests, ~1 s
 python -m ruff check .               # lint, rule set pinned in pyproject.toml
 python smoke_test.py                 # toolchain, 5 checks
 python eval/evaluate.py              # ~26 min; must reproduce the CSVs exactly

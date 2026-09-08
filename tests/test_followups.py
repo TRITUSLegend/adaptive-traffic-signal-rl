@@ -92,23 +92,30 @@ STATES = ("GGrrrrGGrrrr", "rrGrrrrrGrrr", "rrrGGrrrrGGr", "rrrrrGrrrrrG")
 
 
 def write_trace(logs_dir: Path, controller: str, scenario: str,
-                holds=(30, 30, 30, 30)):
+                holds=(30, 30, 30, 30), sequence=None):
     """
     A trace that shows each phase in turn for the given number of seconds.
 
     The first hold sets the worst unserved gap, because every later phase has
     been waiting since t=0 - which is exactly the quantity addendum E reports,
     so a test can dial a compliant or a violating trace by changing one number.
+
+    `sequence`, as (phase index, seconds) pairs, gives full control. It is
+    needed for the case the two bounds pull apart: starving one phase while
+    every green stays short takes a long cycle of the other three, which no
+    single pass over four holds can express.
     """
     path = logs_dir / paths.trace_filename(controller, scenario)
+    steps = sequence if sequence is not None else list(enumerate(holds))
     time = 0.0
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["sim_time", "signal_state"])
         writer.writeheader()
-        for state, hold in zip(STATES, holds):
+        for phase, hold in steps:
             for _ in range(int(hold) // 5):
                 time += 5.0
-                writer.writerow({"sim_time": time, "signal_state": state})
+                writer.writerow({"sim_time": time,
+                                 "signal_state": STATES[phase]})
 
 
 # ---------------------------------------------------------------------------
@@ -464,3 +471,50 @@ def test_the_whole_addendum_set_renders_valid_markdown(logs):
     for text in built:
         assert_tables_are_well_formed(text)
         assert text.startswith("## Addendum ")
+
+
+def test_a_maximum_green_violation_is_reported_even_when_nothing_starves(logs):
+    """
+    The two bounds fail independently. A policy can serve every phase promptly
+    and still hold one of them for a minute, and the section has to say which
+    bound was broken rather than reaching for whichever sentence is nearby.
+    """
+    long_green = followups.MAX_GREEN + 40
+    for controller in followups.SAFETY_CONTROLLERS:
+        write_trace(logs, controller, followups.TRACE_SCENARIO,
+                    holds=(long_green, 10, 10, 10))
+        write_trace(logs, controller + "+safe", followups.TRACE_SCENARIO,
+                    holds=(30, 10, 10, 10))
+
+    text = followups.safety(safety_raw(cost=0.0))
+
+    assert "maximum green was not" in text
+    assert "Both bounds were already satisfied" not in text
+    assert "not already satisfied" not in text
+
+
+def test_the_binding_bound_is_named_when_only_starvation_fails(logs):
+    """
+    When the greens are short and a phase is still starved - which is what the
+    real policies do - the section should say so, because that is the case the
+    headline metrics cannot show.
+    """
+    # Phases 0-2 cycle briskly for six minutes; phase 3 is served once at the
+    # end. Nothing is held long, and one movement is starved - the exact shape
+    # the real policies turned out to have.
+    starving = [(i % 3, 30) for i in range(12)] + [(3, 30)]
+    for controller in followups.SAFETY_CONTROLLERS:
+        write_trace(logs, controller, followups.TRACE_SCENARIO,
+                    sequence=starving)
+        write_trace(logs, controller + "+safe", followups.TRACE_SCENARIO,
+                    holds=(30, 30, 30, 30))
+
+    longest_green, gap, _ = followups.trace_bounds("dqn",
+                                                   followups.TRACE_SCENARIO)
+    assert longest_green <= followups.MAX_GREEN, "no green may be long here"
+    assert gap > followups.MAX_STARVATION, "but one phase must be starved"
+
+    text = followups.safety(safety_raw(cost=0.0))
+
+    assert "starvation bound that binds" in text
+    assert "maximum green was not" not in text
