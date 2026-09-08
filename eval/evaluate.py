@@ -52,9 +52,9 @@ from eval.simulation import (  # noqa: E402
     run_episode,
     safety_wrapped_factory,
 )
+from eval.paths import LOGS_DIR, trace_path  # noqa: E402
 from networks.generate_routes import EVALUATION_SEEDS, SCENARIOS  # noqa: E402
 
-LOGS_DIR = ROOT / "results" / "logs"
 MODELS_DIR = ROOT / "agent" / "models"
 
 # Controllers in the order they should appear in tables and plots: the two
@@ -319,8 +319,7 @@ def main() -> None:
                 rows.append(result.summary())
                 episode_values.append(result.mean_waiting_time_s)
                 if seed == args.trace_seed:
-                    write_trace(result, LOGS_DIR / ("trace_%s_%s.csv" % (
-                        controller.replace("-", "_"), scenario)))
+                    write_trace(result, trace_path(controller, scenario))
                 done += 1
             print("  %-17s wait %6.1f s  (%d runs, %.0f%% done, %.1f min elapsed)"
                   % (controller, statistics.fmean(episode_values), len(episode_values),

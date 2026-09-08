@@ -39,7 +39,17 @@ N_PHASES = 4
 
 
 class StubSignal:
-    green_phases = [object()] * N_PHASES
+    """
+    Stands in for sumo-rl's TrafficSignal.
+
+    It publishes `num_green_phases` and NOT `green_phases`, deliberately: that
+    is exactly the shape sumo-rl presents when SUMO drives the signal, and the
+    wrapper used to read the missing attribute and crash on any fixed-time
+    controller. Keeping the stub minimal is what makes that a test rather than
+    a coincidence.
+    """
+
+    num_green_phases = N_PHASES
 
 
 class StubEnv:
@@ -232,6 +242,27 @@ def test_the_wrapper_inherits_who_drives_the_signal():
 
     inner.uses_env_control = True
     assert SafetyConstrainedController(inner).uses_env_control is True
+
+
+def test_the_wrapper_starts_on_a_signal_sumo_is_driving():
+    """
+    THE REGRESSION. sumo-rl builds its `green_phases` list only when it is
+    driving the signal itself. With a fixed-time plan SUMO runs the program,
+    the attribute is absent, and `on_episode_start` used to raise
+    AttributeError before the episode had taken a step - so `dqn+safe` ran
+    fine and `fixed-time-tuned+safe` could not be evaluated at all.
+
+    The phase count is read from `num_green_phases`, which is published in
+    both modes. Asserting the attribute is absent is the point of the test:
+    without that, a stub carrying both would pass either way.
+    """
+    signal = StubEnv.traffic_signals["C"]
+    assert not hasattr(signal, "green_phases")
+
+    wrapper = SafetyConstrainedController(Fixed(0))
+    wrapper.on_episode_start(StubEnv())
+
+    assert sorted(wrapper._since_served) == list(range(N_PHASES))
 
 
 def test_the_inner_controller_gets_the_episode_start_hook():

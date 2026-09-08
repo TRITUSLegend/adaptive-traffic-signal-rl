@@ -396,7 +396,13 @@ class SafetyConstrainedController(Controller):
         self.env = env
         self.inner.on_episode_start(env)
         signal = env.traffic_signals[env.ts_ids[0]]
-        self._since_served = {i: 0 for i in range(len(signal.green_phases))}
+        # `num_green_phases`, not `len(green_phases)`: sumo-rl only builds the
+        # `green_phases` list when it is driving the signal itself. Wrapping a
+        # fixed-time plan - where SUMO runs the program and `fixed_ts=True` -
+        # leaves the attribute absent, and reading it raised AttributeError
+        # before the episode had taken a single step. The count is published in
+        # both modes and is the thing actually wanted here.
+        self._since_served = {i: 0 for i in range(signal.num_green_phases)}
         self._green_held = 0
         self._current = None
 

@@ -1,8 +1,16 @@
 # Build progress / resume notes
 
-**Paused:** 2026-08-31, at the user's request.
-**Resume by reading this file first.** It records what is done, what is in
-flight, and the exact next steps.
+> **Historical record - not the resume point.** This file logs the original
+> build up to 2026-08-31, when it was paused. The work resumed afterwards, was
+> externally audited, remediated, and extended with five follow-up experiments.
+> To pick the project up now, read `docs/REMEDIATION_LOG.md` (what was done and
+> what remains) and `VERIFICATION.md` (the evidence). This file is kept because
+> the design decisions at the bottom are still the reasons things are the way
+> they are, and re-litigating them would be a waste.
+>
+> Two figures below are superseded: the route directory now holds **60** files,
+> not 40 (`--mixed` adds training seeds for `balanced` and `peak`), and the
+> agent's directional bias is revisited in addendum C of `REPORT.md`.
 
 ---
 

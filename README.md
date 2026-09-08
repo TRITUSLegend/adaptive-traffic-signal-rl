@@ -77,7 +77,7 @@ Every step is a standalone script. Run them in this order for a fresh clone.
 | # | Command | What it does | Time |
 |---|---|---|---|
 | 1 | `python networks/build_network.py` | Builds the intersection and its 4-phase signal plan | seconds |
-| 2 | `python networks/generate_routes.py` | Generates 40 hours of random traffic across 6 demand scenarios | seconds |
+| 2 | `python networks/generate_routes.py --mixed` | Generates 60 hours of random traffic across 6 demand scenarios | seconds |
 | 3 | `python smoke_test.py` | Verifies SUMO, the packages, and a live simulation | ~10 s |
 | 4 | `python baseline/run_baseline.py` | Runs the fixed-time baselines and reports their metrics | ~5 min |
 | 5 | `python agent/train_dqn.py` | Trains the DQN agent | ~45 min |
@@ -85,8 +85,35 @@ Every step is a standalone script. Run them in this order for a fresh clone.
 | 7 | `python eval/evaluate.py` | Runs every controller on every scenario, 5 seeds each | ~25 min |
 | 8 | `python eval/make_plots.py` | Draws the figures used in the report | seconds |
 | 9 | `python eval/make_tables.py --write` | Regenerates the results tables in REPORT.md | seconds |
+| 10 | `python -m pytest` | Runs the test suite | ~2 s |
 
-Steps 1, 2, 8 and 9 are cheap; steps 5-7 are the long ones.
+Steps 1, 2, 8, 9 and 10 are cheap; steps 5-7 are the long ones.
+
+### The follow-up experiments (addenda A-E)
+
+The report's original findings are steps 1-9. Five further experiments were run
+afterwards, each aimed at a weakness the report itself named; they are appended
+to REPORT.md as addenda rather than folded into it. Reproducing them costs
+about another three hours:
+
+```bash
+python agent/train_dqn.py --seed 1 --tag seed1     # a second training seed  (~50 min)
+python agent/train_dqn.py --seed 2 --tag seed2     # a third                 (~50 min)
+python agent/train_mixed.py                        # mixed-demand training   (~50 min)
+python agent/train_ppo.py --episodes 400 --tag long  # PPO, longer budget    (~60 min)
+
+python eval/evaluate.py --controllers dqn_seed1 dqn_seed2 dqn_mixed ppo_long --append
+python eval/evaluate.py --controllers dqn+safe ppo+safe greedy-queue+safe                                      fixed-time-tuned+safe --append
+
+python eval/significance.py --write                # addendum A
+python eval/followups.py --write                   # addenda B-E
+```
+
+`--append` merges the new controllers into `evaluation_raw.csv` instead of
+replacing it, so the published 150-episode sweep is not re-run. A `+safe`
+suffix on any controller wraps it in the maximum-green and anti-starvation
+bounds, which is how the cost of the safety layer is measured rather than
+asserted.
 
 Useful flags:
 
@@ -111,7 +138,8 @@ networks/          The intersection and the traffic
   nodes / edges / connections .xml   hand-written geometry (2 lanes per approach)
   build_network.py                   compiles it and writes the 4-phase signal plan
   generate_routes.py                 generates Poisson vehicle arrivals per scenario
-  routes/                            40 generated demand files
+  routes/                            60 generated demand files (40 for the main
+                                     study, 20 more for the mixed-demand agent)
 
 baseline/          Non-adaptive controllers
   fixed_time.py                      untuned + Webster-tuned fixed-cycle signals
@@ -121,13 +149,20 @@ agent/             The learned controllers
   training.py                        shared training loop, route rotation, logging
   train_dqn.py                       DQN
   train_ppo.py                       PPO
+  train_mixed.py                     DQN on three demand patterns (addendum C)
   models/                            saved policies (.zip)
 
 eval/              Measurement
-  simulation.py                      the one episode runner every controller uses
+  simulation.py                      the one episode runner every controller uses,
+                                     plus the +safe constraint wrapper
   evaluate.py                        the comparison sweep
+  paths.py                           the one place output filenames are decided
   make_plots.py                      figures
   make_tables.py                     generates the results tables in REPORT.md
+  significance.py                    paired t and exact Wilcoxon (addendum A)
+  followups.py                       generates addenda B-E from the same data
+
+tests/             221 tests, run with `python -m pytest`
 
 results/           Outputs
   logs/                              per-episode CSVs, summary tables, traces
@@ -136,8 +171,11 @@ results/           Outputs
 
 sumo_setup.py      Finds SUMO; imported before any SUMO import
 smoke_test.py      End-to-end toolchain check
-REPORT.md          Findings, method, limitations
+pyproject.toml     Python floor, pytest and ruff configuration
+REPORT.md          Findings, method, limitations, and addenda A-E
+VERIFICATION.md    Evidence that the audited defects were fixed
 docs/PROGRESS.md   Build log and design decisions
+docs/REMEDIATION_LOG.md            Working log of the post-audit remediation
 ```
 
 ---
@@ -163,6 +201,36 @@ This matters more than any individual number, so it is worth stating plainly:
 - **Throughput is always reported.** A controller can make waiting time look
   wonderful by simply refusing to let cars into the junction, so waiting time
   is never shown without the throughput next to it.
+
+## Tests
+
+```bash
+python -m pytest
+```
+
+The suite is fast (about two seconds) and is aimed at the places where a bug
+would be *quiet* rather than loud - a number that is wrong but plausible:
+
+- **Route determinism.** The seed must be a fixed function of scenario and
+  seed number. It once was not, and the same command produced different
+  traffic on every run.
+- **Webster's method.** Allocated greens must fit inside the cycle they were
+  computed for, which is the invariant the original closed-form version broke.
+- **Report-to-data provenance.** Every waiting-time cell in REPORT.md is parsed
+  back out of the markdown and checked against the CSVs, so the report cannot
+  drift away from the data it describes.
+- **Trip parsing.** Vehicles still queueing when the hour ends must be counted,
+  or every controller looks better than it is and the congested ones most of all.
+- **The statistics.** The hand-rolled t and Wilcoxon distributions are checked
+  against published critical values and hand-counted cases.
+- **The safety wrapper.** A phase may not be held past the maximum green or go
+  unserved past the starvation bound, whatever the wrapped policy asks for.
+
+`VERIFICATION.md` records the evidence, including a mutation check in which
+deliberate breaks were applied to a copy of the repository to confirm the tests
+actually catch them.
+
+---
 
 ## Reproducibility
 

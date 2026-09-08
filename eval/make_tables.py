@@ -248,9 +248,18 @@ def insertion_backlog_table(raw: list) -> str:
     a count accumulated over the hour. The two nearly coincide here because
     demand stops when the episode does, but the snapshot is what is measured
     and so is what the column says.
+
+    Restricted to the five controllers the report compares, like every other
+    generated table. `evaluation_raw.csv` also carries the addendum variants -
+    extra training seeds, the mixed-demand agent, the `+safe` wrappers - and
+    they belong in their own addendum, not in a section 5 table that a reader
+    will match against the five rows above it. It is also what stops an
+    unrecognised controller from reaching the `LABELS` lookup below.
     """
     grouped = {}
     for row in raw:
+        if row["controller"] not in LABELS:
+            continue
         key = (row["scenario"], row["controller"])
         grouped.setdefault(key, []).append(float(row["vehicles_not_inserted"]))
 

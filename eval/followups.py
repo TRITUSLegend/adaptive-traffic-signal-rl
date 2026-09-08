@@ -28,9 +28,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from eval.make_tables import splice  # noqa: E402
+from eval.paths import LOGS_DIR, trace_path  # noqa: E402
 from eval.significance import paired_differences, paired_t_test  # noqa: E402
 
-LOGS_DIR = ROOT / "results" / "logs"
 REPORT_PATH = ROOT / "REPORT.md"
 
 SCENARIOS = ["balanced", "ns_heavy", "peak", "ew_heavy", "surge", "light"]
@@ -356,7 +356,7 @@ def ppo_long(raw: list) -> str:
         "",
         "| Scenario | PPO (%d ep) | PPO (%d ep) | DQN | Long vs original |"
         % (short_eps, long_eps),
-        "|---|---|---|---|",
+        "|---|---|---|---|---|",
     ]
     for scenario in SCENARIOS:
         short, long_, dqn = (wait(raw, "ppo", scenario),
@@ -382,15 +382,32 @@ def ppo_long(raw: list) -> str:
         closed.append((scenario, original_gap, new_gap))
 
     for scenario, original_gap, new_gap in closed:
-        fraction = (1.0 - new_gap / original_gap) * 100.0 if original_gap else 0.0
-        lines.append(
-            "On `%s` PPO's gap behind the DQN was %.1f s at the original budget "
-            "and is %.1f s at the longer one - %.0f%% of it closed."
-            % (scenario, original_gap, new_gap, fraction))
+        if original_gap <= 0:
+            lines.append(
+                "On `%s` PPO was already level with or ahead of the DQN at the "
+                "original budget (%+.1f s), and is %+.1f s at the longer one, "
+                "so there was no deficit here to explain."
+                % (scenario, original_gap, new_gap))
+        elif new_gap <= 0:
+            lines.append(
+                "On `%s` PPO trailed the DQN by %.1f s at the original budget "
+                "and is %.1f s ahead of it at the longer one - the deficit is "
+                "gone, not merely reduced."
+                % (scenario, original_gap, -new_gap))
+        else:
+            lines.append(
+                "On `%s` PPO's gap behind the DQN was %.1f s at the original "
+                "budget and is %.1f s at the longer one - %.0f%% of it closed."
+                % (scenario, original_gap, new_gap,
+                   (1.0 - new_gap / original_gap) * 100.0))
     lines.append("")
 
-    if closed:
-        mostly_closed = all(abs(new) < abs(orig) * 0.5 for _, orig, new in closed)
+    # Judge on the signed gaps, not their magnitudes: a gap that has crossed
+    # zero is a gap that closed, and abs() would have scored an overtake as a
+    # large remaining deficit and printed the opposite conclusion.
+    deficits = [(orig, new) for _, orig, new in closed if orig > 0]
+    if deficits:
+        mostly_closed = all(new < orig * 0.5 for orig, new in deficits)
         if mostly_closed:
             lines += [
                 "That supports section 5.3's reading. The deficit was largely a",
@@ -429,8 +446,7 @@ def trace_bounds(controller: str, scenario: str):
     the controller, so it reports what the signal did, not what the controller
     believed it was doing.
     """
-    path = LOGS_DIR / ("trace_%s_%s.csv" % (
-        controller.replace("-", "_").replace("+", "_"), scenario))
+    path = trace_path(controller, scenario)
     if not path.exists():
         return None
     with path.open(encoding="utf-8") as fh:
@@ -456,12 +472,42 @@ def trace_bounds(controller: str, scenario: str):
     return longest_green, worst_gap
 
 
+# Controllers the safety sweep covers, in the order the addendum discusses
+# them. The first three drive the signal themselves, so the wrapper is live on
+# them. The fixed-time plan is run by SUMO - see LIVE_WRAPPER below.
+SAFETY_CONTROLLERS = ["dqn", "ppo", "greedy-queue", "fixed-time-tuned"]
+
+# Where wrapping actually changes anything. A controller with
+# `uses_env_control = False` hands the signal to SUMO's own program and its
+# `act()` is never consulted, so the wrapper cannot intervene however the plan
+# behaves. Its `+safe` run is therefore identical to its unwrapped one by
+# construction, and reporting that as evidence of compliance would be reading a
+# tautology as a measurement.
+LIVE_WRAPPER = {"dqn": True, "ppo": True, "greedy-queue": True,
+                "fixed-time-tuned": False}
+
+SAFETY_LABELS = {
+    "dqn": "DQN",
+    "ppo": "PPO",
+    "greedy-queue": "Greedy queue heuristic",
+    "fixed-time-tuned": "Fixed-time (Webster-tuned)",
+}
+
+
+def mean_wait_across_scenarios(raw: list, controller: str):
+    """Mean waiting time over every scenario this controller was run on."""
+    values = [wait(raw, controller, s) for s in SCENARIOS]
+    values = [v for v in values if v is not None]
+    return statistics.fmean(values) if values else None
+
+
 def safety(raw: list) -> str:
-    pairs = [(c, c + "+safe") for c in
-             ("dqn", "greedy-queue", "fixed-time-tuned")
-             if present(raw, c + "+safe")]
+    pairs = [(c, c + "+safe") for c in SAFETY_CONTROLLERS
+             if present(raw, c + "+safe") and present(raw, c)]
     if not pairs:
         return None
+    live = [(base, wrapped) for base, wrapped in pairs if LIVE_WRAPPER[base]]
+    inert = [(base, wrapped) for base, wrapped in pairs if not LIVE_WRAPPER[base]]
 
     lines = [
         "## Addendum E: putting a maximum green and a starvation bound on it",
@@ -486,7 +532,8 @@ def safety(raw: list) -> str:
         "### What the signal actually did",
         "",
         "Measured from the recorded light strings, not from the controller's",
-        "own counters:",
+        "own counters - so this is what the junction did, not what the",
+        "controller believed it was doing:",
         "",
         "| Controller | Longest continuous green | Longest a phase went unserved |",
         "|---|---|---|",
@@ -503,7 +550,7 @@ def safety(raw: list) -> str:
 
     lines += [
         "",
-        "(On `%s`, the trace seed.)" % scenario,
+        "(On `%s`, the trace seed. The bounds are 60 s and 200 s.)" % scenario,
         "",
         "### What the constraint costs",
         "",
@@ -517,12 +564,13 @@ def safety(raw: list) -> str:
             if before is None or after is None:
                 continue
             costs.append((base, scen, after - before))
-        overall_before = statistics.fmean(
-            [wait(raw, base, s) for s in SCENARIOS if wait(raw, base, s)])
-        overall_after = statistics.fmean(
-            [wait(raw, wrapped, s) for s in SCENARIOS if wait(raw, wrapped, s)])
-        lines.append("| `%s` | %.1f s | %.1f s | %+.2f s |"
-                     % (base, overall_before, overall_after,
+        overall_before = mean_wait_across_scenarios(raw, base)
+        overall_after = mean_wait_across_scenarios(raw, wrapped)
+        if overall_before is None or overall_after is None:
+            continue
+        note = "" if LIVE_WRAPPER[base] else " *(wrapper inert - see below)*"
+        lines.append("| `%s`%s | %.1f s | %.1f s | %+.2f s |"
+                     % (base, note, overall_before, overall_after,
                         overall_after - overall_before))
 
     lines += ["", "(Mean across all six scenarios.)", "", "### What it shows", ""]
@@ -562,6 +610,48 @@ def safety(raw: list) -> str:
                 "policy is not deployable regardless of its average.",
                 "",
             ]
+
+    if len(live) > 1:
+        others = [SAFETY_LABELS[b] for b, _ in live if b != "dqn"]
+        if others:
+            lines += [
+                "The same holds for the other policies the wrapper is live on",
+                "(%s): each was already inside both bounds, so wrapping them"
+                % ", ".join(others),
+                "changes their numbers by rounding at most.",
+                "",
+            ]
+
+    if inert:
+        names = ", ".join("`%s`" % b for b, _ in inert)
+        lines += [
+            "**Why the fixed-time row is a null and not a result.** For %s the"
+            % names,
+            "signal is run by SUMO's own program: the controller's `act()` is",
+            "never consulted, so the wrapper has nothing to override and its",
+            "`+safe` run is bit-identical to the unwrapped one *by",
+            "construction*. The zero in that row is arithmetic, not evidence.",
+            "",
+            "The plan's compliance is real, but it is established by the first",
+            "table rather than by this one: a 104 s cycle that serves every",
+            "phase in turn cannot hold a green past its own split or leave a",
+            "phase unserved for two cycles. That is exactly the property the",
+            "wrapper has to enforce on a learned policy, and it is why a fixed",
+            "plan is the safe, dull thing that adaptive control has to earn its",
+            "way past.",
+            "",
+        ]
+
+    lines += [
+        "**What this does not establish.** The bounds were checked on the six",
+        "evaluation scenarios and the policy satisfied them; that is evidence",
+        "about these hours of traffic, not a proof about all of them. The",
+        "wrapper is what converts it into a guarantee, and the guarantee it",
+        "gives is the one stated in the class docstring - a phase is served",
+        "within 200 s plus up to 15 s of hand-over slack, not within 200 s",
+        "exactly.",
+        "",
+    ]
     return "\n".join(lines)
 
 

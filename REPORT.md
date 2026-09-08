@@ -435,16 +435,41 @@ python agent/train_ppo.py                # train PPO                 (~26 min)
 python eval/evaluate.py                  # compare everything        (~25 min)
 python eval/make_plots.py                # figures
 python eval/make_tables.py --write       # the tables in this report
+python -m pytest                         # the test suite            (~2 s)
 ```
+
+The addenda below were run afterwards and cost about three hours more:
+
+```bash
+python agent/train_dqn.py --seed 1 --tag seed1        # addendum B  (~50 min)
+python agent/train_dqn.py --seed 2 --tag seed2        # addendum B  (~50 min)
+python agent/train_mixed.py                           # addendum C  (~50 min)
+python agent/train_ppo.py --episodes 400 --tag long   # addendum D  (~60 min)
+
+python eval/evaluate.py --controllers dqn_seed1 dqn_seed2 dqn_mixed ppo_long --append
+python eval/evaluate.py --controllers dqn+safe ppo+safe greedy-queue+safe                                      fixed-time-tuned+safe --append   # addendum E
+
+python eval/significance.py --write      # addendum A
+python eval/followups.py --write         # addenda B-E
+```
+
+`--append` merges the new controllers into `evaluation_raw.csv` rather than
+replacing it, so the 150-episode sweep above is not re-run and the numbers in
+sections 4 and 5 cannot move as a side effect of adding an addendum.
 
 **Where the numbers come from.** Every results table in this report sits
 between a paired `BEGIN GENERATED` / `END GENERATED` HTML comment and is
-written into this file by `eval/make_tables.py --write`, straight from
-`results/logs/evaluation_summary.csv` and `evaluation_raw.csv`. Re-running the
-evaluation and then that command updates the tables in place; nothing in them
-is transcribed by hand. Figures quoted in the surrounding prose are read off
-those tables, so if a table moves and a sentence does not, the two will
-visibly disagree rather than quietly agreeing on a stale number.
+written into this file by a generator, straight from
+`results/logs/evaluation_summary.csv` and `evaluation_raw.csv`:
+`eval/make_tables.py --write` writes the four tables in sections 4 and 5,
+`eval/significance.py --write` writes addendum A, and `eval/followups.py
+--write` writes addenda B to E. Re-running the evaluation and then those
+commands updates the tables in place; nothing in them is transcribed by hand.
+Figures quoted in the surrounding prose are read off those tables, so if a
+table moves and a sentence does not, the two will visibly disagree rather than
+quietly agreeing on a stale number. `tests/test_report_matches_data.py` parses
+the numbers back out of this file and checks them against the CSVs, so the
+claim is enforced rather than asserted.
 
 **How the comparison is kept fair:** all controllers run through one code path
 (`eval/simulation.py:run_episode`), on the identical list of vehicles for a
@@ -483,7 +508,7 @@ Nothing in it has been rewritten: the sections below were **added afterwards**,
 and where they qualify a conclusion above they say so explicitly rather than
 editing it away.
 
-Four follow-up experiments were run, each targeting a weakness the report
+Five follow-up experiments were run, each targeting a weakness the report
 itself identified in §6 and §7:
 
 | Addendum | Targets | From |
@@ -609,6 +634,54 @@ distribution-free test runs out of resolution at this n.
 <!-- END GENERATED: significance -->
 
 <!-- BEGIN GENERATED: seed-variance -->
+## Addendum B: does the result survive a different training seed?
+
+Section 6 lists this as the study's sharpest statistical weakness:
+both agents in the original report came from a **single training seed**
+(42), and one run can be lucky. Section 7 puts training several agents
+at the top of the future-work list. This addendum does that.
+
+2 DQN agents were trained, identical in every respect except the seed
+controlling network initialisation and exploration. Each was then run
+through the same evaluation: six scenarios, the same five held-out
+demand seeds, the same code path.
+
+### Where each agent ended up in training
+
+| Training seed | Episodes | Mean queue, last 10 episodes (veh) |
+|---|---|---|
+| 42 *(original)* | 170 | 11.4 |
+| 1 | 170 | 11.1 |
+
+### Waiting time by scenario, per training seed
+
+| Scenario | seed 42 | seed 1 | Mean | Spread (sd) | Range |
+|---|---|---|---|---|---|
+| `balanced` | 19.7 | 19.0 | 19.4 | 0.48 | 0.7 |
+| `ns_heavy` | 20.6 | 20.2 | 20.4 | 0.31 | 0.4 |
+| `peak` | 39.4 | 40.2 | 39.8 | 0.56 | 0.8 |
+| `ew_heavy` | 24.9 | 23.3 | 24.1 | 1.13 | 1.6 |
+| `surge` | 37.6 | 38.5 | 38.0 | 0.68 | 1.0 |
+| `light` | 14.0 | 13.9 | 13.9 | 0.11 | 0.2 |
+
+### What it shows
+
+**The headline is not an artefact of one lucky run.** Across training
+seeds the spread is largest on `ew_heavy` at 1.13 s (4.7% of that
+scenario's mean, a range of 1.6 s) and smallest on `light` at 0.11 s.
+
+Set that against the effects the report claims. The DQN's advantage
+over the greedy heuristic under saturation is about 13 s, which is far
+larger than the seed-to-seed spread and therefore not something a
+different initialisation would erase. The gaps the report was already
+cautious about - a second or so on `balanced` and `light` - are much
+closer to it, and should be read accordingly.
+
+**Note what this does and does not measure.** Each column is one
+agent evaluated on five demand seeds, so the spread here is variation
+between *trained policies*, not between hours of traffic. It is the
+quantity section 6 said was missing.
+
 <!-- END GENERATED: seed-variance -->
 
 <!-- BEGIN GENERATED: mixed-demand -->

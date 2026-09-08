@@ -37,13 +37,12 @@ matplotlib.use("Agg")  # render to files; no interactive window needed
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import FancyBboxPatch  # noqa: E402
 
+from eval.paths import LOGS_DIR, PLOTS_DIR, trace_path  # noqa: E402
+
 # The rounded bars are positioned in pixel coordinates, which are only valid
 # for one dpi. The figure is therefore CREATED at the same dpi it is SAVED
 # at; letting savefig re-render at a different dpi would move every bar.
 FIG_DPI = 160
-
-LOGS_DIR = ROOT / "results" / "logs"
-PLOTS_DIR = ROOT / "results" / "plots"
 
 # --- palette ---------------------------------------------------------------
 # Validated categorical palette (see the data-visualisation guidelines): the
@@ -384,8 +383,7 @@ def plot_queue_over_time(scenario: str = "ns_heavy") -> Path | None:
     """
     series = []
     for controller in ORDER:
-        rows = read_csv(LOGS_DIR / ("trace_%s_%s.csv" % (
-            controller.replace("-", "_"), scenario)))
+        rows = read_csv(trace_path(controller, scenario))
         if rows:
             series.append((controller, rows))
     if not series:
