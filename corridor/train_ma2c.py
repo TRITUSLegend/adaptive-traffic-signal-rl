@@ -109,20 +109,27 @@ def train(episodes: int, seed: int, n_junctions: int, tag: str = "",
                 steps += 1
 
                 if steps % ROLLOUT == 0 or done:
-                    # Bootstrap from the value of the state we stopped in; zero
-                    # at the end of an episode, where there is no future.
-                    if done:
+                    # Bootstrap from the value of the state we stopped in -
+                    # INCLUDING at the end of an episode.
+                    #
+                    # The obvious thing is to use zero when `done`, and the
+                    # first version did. That is right for a terminal state and
+                    # wrong here: this episode ends because the simulated hour
+                    # is over, not because the traffic finished. The cars are
+                    # still queueing. Zeroing the bootstrap tells the critic
+                    # that all future delay after 3600 s is worth nothing,
+                    # which is the same time-limit mistake SB3 avoids with its
+                    # `TimeLimit.truncated` flag - and the corridor's VecEnv
+                    # now sets that flag for exactly the same reason.
+                    with torch.no_grad():
                         for ts in batch:
-                            batch[ts]["bootstrap"] = 0.0
-                    else:
-                        with torch.no_grad():
-                            for ts in batch:
-                                if ts not in observations:
-                                    continue
-                                x = torch.from_numpy(
-                                    model.build_input(ts, observations)).float()
-                                _, value = model.nets[ts](x.unsqueeze(0))
-                                batch[ts]["bootstrap"] = float(value.item())
+                            if ts not in observations:
+                                batch[ts]["bootstrap"] = 0.0
+                                continue
+                            x = torch.from_numpy(
+                                model.build_input(ts, observations)).float()
+                            _, value = model.nets[ts](x.unsqueeze(0))
+                            batch[ts]["bootstrap"] = float(value.item())
                     model.update(batch)
                     batch = empty_batch(model.ts_ids)
 

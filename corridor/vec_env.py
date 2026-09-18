@@ -73,6 +73,37 @@ from corridor.generate_corridor_routes import (  # noqa: E402
 from eval.simulation import quiet_stdout  # noqa: E402
 
 
+def episode_end_info(terminal_observation, episode_return: float,
+                     length: int, mean_queue: float) -> dict:
+    """
+    The `info` dict SB3 receives for the step that ends an episode.
+
+    Pulled out of `step_wait` so the contract can be tested without standing up
+    a SUMO simulation, because one of its three keys is easy to omit and
+    expensive to omit:
+
+      terminal_observation  the observation before the auto-reset, which SB3
+                            substitutes back in when storing the transition
+      TimeLimit.truncated   THE IMPORTANT ONE - see below
+      episode               bookkeeping for the training curve
+
+    **Why `TimeLimit.truncated` must be True.** The episode ends because the
+    simulated hour is over, not because the traffic reached a terminal state -
+    the cars are still queueing when we stop watching. SB3's own DummyVecEnv
+    sets this flag; a hand-written VecEnv has to as well. Without it the
+    boundary transition is stored as genuinely terminal and the bootstrap is
+    dropped (the replay buffer zeroes it through `timeouts`, and PPO skips its
+    terminal-value correction), which teaches the agent that nothing after
+    3600 s matters. With gamma=0.95 the damage is confined to roughly the last
+    20 steps of each episode, but it is wrong and costs nothing to avoid.
+    """
+    return {
+        "terminal_observation": terminal_observation,
+        "TimeLimit.truncated": True,
+        "episode": {"r": episode_return, "l": length, "queue": mean_queue},
+    }
+
+
 class CorridorVecEnv(VecEnv):
     """
     One SUMO corridor presented as `n_junctions` parallel agents.
@@ -182,14 +213,25 @@ class CorridorVecEnv(VecEnv):
         if done:
             # SB3 expects the terminal observation in `info` and a fresh one
             # from `reset()` in its place, since the VecEnv auto-resets.
+            #
+            # `TimeLimit.truncated` is the important flag here and it is easy
+            # to omit: SB3's own DummyVecEnv sets it, a hand-written VecEnv
+            # must too. An episode ends because the simulated HOUR is over,
+            # not because the traffic reached a terminal state - the cars are
+            # still queueing when we stop watching. Without this flag SB3
+            # stores the boundary transition as genuinely terminal and drops
+            # the bootstrap (ReplayBuffer zeroes it via `timeouts`, and PPO
+            # skips its terminal-value correction), which teaches the agent
+            # that the world ends at 3600 s and that nothing after it matters.
+            # With gamma=0.95 the effect is confined to roughly the last 20
+            # steps of each episode, but it is wrong and costs nothing to fix.
             self.episode_returns.append(self._return)
             self.episode_queues.append(
                 self._queue_sum / self._queue_n if self._queue_n else 0.0)
             mean_queue = self.episode_queues[-1]
             for i in range(self.num_envs):
-                infos[i]["terminal_observation"] = obs[i]
-                infos[i]["episode"] = {"r": self._return, "l": self._queue_n,
-                                       "queue": mean_queue}
+                infos[i] = episode_end_info(obs[i], self._return,
+                                            self._queue_n, mean_queue)
             self._episode += 1
             obs = self.reset()
 
