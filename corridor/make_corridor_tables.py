@@ -201,18 +201,26 @@ def detector_table(rows: list) -> str:
                  "",
                  "| Controller | " + " | ".join(
                      "%.0f%% dead" % (100 * r) for r in FAILURE_RATES)
-                 + " | Degradation |", "|---|" + "---|" * (len(FAILURE_RATES) + 1)]
+                 + " | Change at %.0f%% |" % (100 * max(FAILURE_RATES)),
+                 "|---|" + "---|" * (len(FAILURE_RATES) + 1)]
         for controller in CONTROLLER_ORDER:
-            cells, clean, worst = [], None, None
+            # `heaviest` is the value at the LARGEST failure rate, which is the
+            # quantity the column reports. It is deliberately not the maximum
+            # over rates: "how bad does it get when half the detectors die" is
+            # a different and more answerable question than "what is the worst
+            # cell anywhere in this row", and conflating them would let a noisy
+            # middle rate set the headline.
+            cells, clean, heaviest = [], None, None
             for rate in FAILURE_RATES:
                 value = perturbed_cell(rows, controller, rate, mode,
                                        "mean_waiting_time_s")
                 cells.append(fmt(value))
                 if rate == 0.0:
                     clean = value
-                worst = value if value is not None else worst
-            if clean and worst:
-                change = "%+.0f%%" % (100.0 * (worst - clean) / clean)
+                if rate == max(FAILURE_RATES):
+                    heaviest = value
+            if clean and heaviest:
+                change = "%+.0f%%" % (100.0 * (heaviest - clean) / clean)
             else:
                 change = "-"
             lines.append("| %s | %s | **%s** |"
