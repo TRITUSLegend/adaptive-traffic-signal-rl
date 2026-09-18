@@ -425,7 +425,7 @@ robustness study that the original explicitly listed as missing.
 
 ```bash
 python corridor/build_corridor.py --all              # corridor 2, 3 and 5
-python corridor/generate_corridor_routes.py          # 60 route files
+python corridor/generate_corridor_routes.py --all    # 70 route files
 python corridor/train_independent.py --algo dqn      # ~3-5 h
 python corridor/train_independent.py --algo ppo      # ~3-5 h
 python corridor/train_ma2c.py                        # ~3-5 h
