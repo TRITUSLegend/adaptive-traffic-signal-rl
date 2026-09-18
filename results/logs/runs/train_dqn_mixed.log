@@ -1,0 +1,38 @@
+Mixed-demand training over balanced, ns_heavy, peak.
+Held out and never trained on: ew_heavy, surge, light.
+Each episode is 720 decisions; budget = 122400 timesteps.
+
+========================================================================
+Training DQN on the single-intersection traffic signal
+========================================================================
+  scenario          balanced+ns_heavy+peak (rotating over 30 demand files)
+  episode length    3600 simulated seconds (720 decisions)
+  decision interval 5 s   yellow 4 s   min green 10 s
+  reward            negative_queue_reward
+  budget            170 episodes = 122400 timesteps
+  random seed       42
+========================================================================
+  dqn episode   10 |    7200 steps | return(avg10)   -5904.2 | mean queue  65.6 veh |   3.9 min elapsed
+  dqn episode   20 |   14400 steps | return(avg10)   -3915.7 | mean queue  43.5 veh |   9.3 min elapsed
+  dqn episode   30 |   21600 steps | return(avg10)   -3447.3 | mean queue  38.3 veh |  14.2 min elapsed
+  dqn episode   40 |   28800 steps | return(avg10)   -2077.1 | mean queue  23.1 veh |  17.9 min elapsed
+  dqn episode   50 |   36000 steps | return(avg10)   -1765.8 | mean queue  19.6 veh |  21.3 min elapsed
+  dqn episode   60 |   43200 steps | return(avg10)   -1574.8 | mean queue  17.5 veh |  24.6 min elapsed
+  dqn episode   70 |   50400 steps | return(avg10)   -1385.0 | mean queue  15.4 veh |  27.7 min elapsed
+  dqn episode   80 |   57600 steps | return(avg10)   -1344.0 | mean queue  14.9 veh |  30.7 min elapsed
+  dqn episode   90 |   64800 steps | return(avg10)   -1485.9 | mean queue  16.5 veh |  33.9 min elapsed
+  dqn episode  100 |   72000 steps | return(avg10)   -1316.1 | mean queue  14.6 veh |  37.0 min elapsed
+  dqn episode  110 |   79200 steps | return(avg10)   -1444.8 | mean queue  16.1 veh |  40.1 min elapsed
+  dqn episode  120 |   86400 steps | return(avg10)   -1509.7 | mean queue  16.8 veh |  43.3 min elapsed
+  dqn episode  130 |   93600 steps | return(avg10)   -1353.0 | mean queue  15.0 veh |  46.4 min elapsed
+  dqn episode  140 |  100800 steps | return(avg10)   -1418.1 | mean queue  15.8 veh |  49.5 min elapsed
+  dqn episode  150 |  108000 steps | return(avg10)   -1607.1 | mean queue  17.9 veh |  52.8 min elapsed
+  dqn episode  160 |  115200 steps | return(avg10)   -1370.7 | mean queue  15.2 veh |  55.9 min elapsed
+  dqn episode  170 |  122400 steps | return(avg10)   -1406.3 | mean queue  15.6 veh |  59.1 min elapsed
+
+Finished in 59.1 minutes.
+  model  C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\agent\models\dqn_mixed.zip
+  curve  C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\results\logs\training_curve_dqn_mixed.csv
+  mean queue over first 10 episodes:  65.6 vehicles
+  mean queue over last  10 episodes:  15.6 vehicles
+  -> improved by 76% during training

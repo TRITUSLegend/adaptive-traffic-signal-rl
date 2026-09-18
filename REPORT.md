@@ -641,7 +641,7 @@ both agents in the original report came from a **single training seed**
 (42), and one run can be lucky. Section 7 puts training several agents
 at the top of the future-work list. This addendum does that.
 
-2 DQN agents were trained, identical in every respect except the seed
+3 DQN agents were trained, identical in every respect except the seed
 controlling network initialisation and exploration. Each was then run
 through the same evaluation: six scenarios, the same five held-out
 demand seeds, the same code path.
@@ -652,23 +652,24 @@ demand seeds, the same code path.
 |---|---|---|
 | 42 *(original)* | 170 | 11.4 |
 | 1 | 170 | 11.1 |
+| 2 | 170 | 11.0 |
 
 ### Waiting time by scenario, per training seed
 
-| Scenario | seed 42 | seed 1 | Mean | Spread (sd) | Range |
-|---|---|---|---|---|---|
-| `balanced` | 19.7 | 19.0 | 19.4 | 0.48 | 0.7 |
-| `ns_heavy` | 20.6 | 20.2 | 20.4 | 0.31 | 0.4 |
-| `peak` | 39.4 | 40.2 | 39.8 | 0.56 | 0.8 |
-| `ew_heavy` | 24.9 | 23.3 | 24.1 | 1.13 | 1.6 |
-| `surge` | 37.6 | 38.5 | 38.0 | 0.68 | 1.0 |
-| `light` | 14.0 | 13.9 | 13.9 | 0.11 | 0.2 |
+| Scenario | seed 42 | seed 1 | seed 2 | Mean | Spread (sd) | Range |
+|---|---|---|---|---|---|---|
+| `balanced` | 19.7 | 19.0 | 18.7 | 19.2 | 0.53 | 1.0 |
+| `ns_heavy` | 20.6 | 20.2 | 20.2 | 20.3 | 0.25 | 0.4 |
+| `peak` | 39.4 | 40.2 | 45.0 | 41.6 | 3.03 | 5.6 |
+| `ew_heavy` | 24.9 | 23.3 | 22.3 | 23.5 | 1.33 | 2.6 |
+| `surge` | 37.6 | 38.5 | 41.4 | 39.2 | 2.01 | 3.9 |
+| `light` | 14.0 | 13.9 | 14.2 | 14.0 | 0.18 | 0.4 |
 
 ### What it shows
 
 **The headline is not an artefact of one lucky run.** Across training
-seeds the spread is largest on `ew_heavy` at 1.13 s (4.7% of that
-scenario's mean, a range of 1.6 s) and smallest on `light` at 0.11 s.
+seeds the spread is largest on `peak` at 3.03 s (7.3% of that
+scenario's mean, a range of 5.6 s) and smallest on `light` at 0.18 s.
 
 Set that against the effects the report claims. The DQN's advantage
 over the greedy heuristic under saturation is about 13 s, which is far
@@ -685,10 +686,247 @@ quantity section 6 said was missing.
 <!-- END GENERATED: seed-variance -->
 
 <!-- BEGIN GENERATED: mixed-demand -->
+## Addendum C: does training on mixed demand remove the directional bias?
+
+Section 4.4 identifies the clearest weakness in the results. The DQN
+saw only `ns_heavy` in training and absorbed a preference for
+north-south that does not transfer: on `ew_heavy`, the identical
+demand mirrored, it does noticeably worse, while the greedy heuristic
+- which has no learned preference - is unaffected.
+
+`agent/train_mixed.py` trains an otherwise identical DQN on three
+demand patterns instead of one: `balanced`, `ns_heavy` and `peak`,
+interleaved, same hyperparameters, same budget, same seed.
+
+> **`ew_heavy`, `surge` and `light` were deliberately excluded from
+> training.** `ew_heavy` is the test that exposes the bias; training on
+> it would not fix the bias, it would destroy the measurement. So this
+> tests the modest claim - that varied demand reduces the learned
+> preference - not the circular one. Be clear about the limit: of the
+> three training scenarios one is symmetric and two are north-south
+> heavy, so the agent still never sees east-west traffic dominate.
+
+### The directional penalty
+
+Waiting time on the mirrored demand, relative to the demand trained on:
+
+| Controller | `ns_heavy` | `ew_heavy` | Penalty |
+|---|---|---|---|
+| DQN (ns_heavy only) | 20.6 s | 24.9 s | +20.8% |
+| **DQN (mixed demand)** | 20.7 s | 21.0 s | +1.2% |
+| Greedy queue (no learning) | 22.3 s | 22.2 s | -0.4% |
+
+### Every scenario, mixed against single-scenario training
+
+| Scenario | DQN (ns_heavy) | DQN (mixed) | Difference |
+|---|---|---|---|
+| `balanced` | 19.7 s | 18.7 s | -1.07 (*) |
+| `ns_heavy` *(trained on)* | 20.6 s | 20.7 s | +0.09 (n.s.) |
+| `peak` | 39.4 s | 41.9 s | +2.47 (n.s.) |
+| `ew_heavy` *(held out)* | 24.9 s | 21.0 s | -3.95 (*) |
+| `surge` *(held out)* | 37.6 s | 39.3 s | +1.78 (*) |
+| `light` *(held out)* | 14.0 s | 14.9 s | +0.90 (n.s.) |
+
+Differences are paired per seed; `*` marks p<0.05 on a paired t-test,
+`n.s.` no resolvable difference. Negative favours the mixed agent.
+
+### What it shows
+
+The directional penalty went from **+20.8%** to **+1.2%**, a genuine reduction.
+
+So the bias is a property of the training distribution rather
+than something inherent to the method - which is the useful
+finding, because it means the fix is data, not architecture.
+It is a reduction and not an elimination, and that is the
+expected result: two of the three training scenarios are still
+north-south heavy, so the agent has seen varied demand but
+never a reversed arterial.
+
+For reference the greedy heuristic's penalty is -0.4%, which is
+the level a controller with no learned directional preference
+sits at.
+
 <!-- END GENERATED: mixed-demand -->
 
 <!-- BEGIN GENERATED: ppo-long -->
+## Addendum D: was PPO's deficit just sample efficiency?
+
+Section 5.3 argues that PPO's clear loss to DQN on `peak` and `surge`
+is most likely a sample-efficiency effect rather than a real
+unsuitability: PPO is on-policy, discards its experience after every
+update, and its training curve was still descending when the budget
+ran out. The section says a longer run is the obvious follow-up and
+was not attempted. It has now been attempted: **400 episodes against
+the original 170**, everything else identical.
+
+### Where each run ended up in training
+
+| Run | Episodes | Mean queue, last 10 episodes (veh) |
+|---|---|---|
+| PPO (original) | 170 | 11.5 |
+| **PPO (long)** | 400 | 10.5 |
+| DQN, for reference | 170 | 11.4 |
+
+### Waiting time by scenario
+
+| Scenario | PPO (170 ep) | PPO (400 ep) | DQN | Long vs original |
+|---|---|---|---|---|
+| `balanced` | 19.2 s | 18.5 s | 19.7 s | -0.77 (n.s.) |
+| `ns_heavy` | 19.8 s | 19.9 s | 20.6 s | +0.08 (n.s.) |
+| `peak` | 51.7 s | 50.2 s | 39.4 s | -1.42 (n.s.) |
+| `ew_heavy` | 25.0 s | 21.1 s | 24.9 s | -3.99 (*) |
+| `surge` | 46.6 s | 45.6 s | 37.6 s | -1.00 (n.s.) |
+| `light` | 15.0 s | 14.7 s | 14.0 s | -0.32 (*) |
+
+### What it shows
+
+On `peak` PPO's gap behind the DQN was 12.2 s at the original budget and is 10.8 s at the longer one - 12% of it closed.
+On `surge` PPO's gap behind the DQN was 9.0 s at the original budget and is 8.0 s at the longer one - 11% of it closed.
+
+That only partly supports section 5.3. More episodes helped,
+but a substantial gap remains, so sample efficiency is not the
+whole story and the honest conclusion is weaker than the
+original section suggested.
+
+Either way the practical point stands: the two algorithms were given
+an equal budget in the original comparison, and at that budget DQN was
+ahead. What changes is the explanation, not the table.
+
 <!-- END GENERATED: ppo-long -->
 
 <!-- BEGIN GENERATED: safety-constraints -->
+## Addendum E: putting a maximum green and a starvation bound on it
+
+Section 6 records that nothing in the project is safety-validated: a
+10 s minimum green and a 4 s amber were the only constraints, and
+neither prevents a policy from holding one phase indefinitely or from
+alternating between two while a third is never served. Real signals
+are not allowed to do either.
+
+Both failure modes are invisible in the headline metric, which is what
+makes them worth checking directly: a starved approach holds few
+enough vehicles that its delay is diluted by the ones being served
+well, so mean waiting time can look fine while a movement never runs.
+
+`SafetyConstrainedController` adds two bounds - a **60 s maximum
+green** and a **200 s starvation bound**, after which the
+longest-waiting phase is served whatever the policy asked for. It is a
+wrapper, so no agent had to be retrained and every controller can be
+measured with and without it.
+
+### What the signal actually did
+
+Read from the recorded light strings, not from the controller's own
+counters - so this is what the junction did, not what the controller
+believed it was doing. Gaps are measured over the whole hour,
+including the wait before a phase's first green and after its last.
+
+| Controller | Longest continuous green | Longest a phase went unserved | Phases served |
+|---|---|---|---|
+| `dqn` | 35 s | **315 s** | 4 of 4 |
+| `dqn+safe` | 35 s | **210 s** | 4 of 4 |
+| `ppo` | 45 s | **285 s** | 4 of 4 |
+| `ppo+safe` | 40 s | **215 s** | 4 of 4 |
+| `greedy-queue` | 30 s | **320 s** | 4 of 4 |
+| `greedy-queue+safe` | 30 s | **215 s** | 4 of 4 |
+| `fixed-time-tuned` | 50 s | 115 s | 4 of 4 |
+| `fixed-time-tuned+safe` | 50 s | 115 s | 4 of 4 |
+
+(On `ns_heavy`, the trace seed. Bold exceeds the 200 s bound. The phase count
+is there because the worst starvation of all - a phase that never runs
+- leaves no gap to measure and would otherwise be invisible.)
+
+### What the constraint costs
+
+| Controller | Unconstrained | With bounds | Cost |
+|---|---|---|---|
+| `dqn` | 26.0 s | 25.9 s | -0.14 s |
+| `ppo` | 29.6 s | 29.7 s | +0.13 s |
+| `greedy-queue` | 30.0 s | 30.2 s | +0.18 s |
+| `fixed-time-tuned` *(wrapper inert - see below)* | 35.1 s | 35.1 s | +0.00 s |
+
+(Mean across all six scenarios.)
+
+### What it shows
+
+**The bound was not already satisfied, and that is the finding.**
+Every unconstrained policy measured here left some phase unserved
+for longer than 200 s: the worst was `greedy-queue` at 320 s, more than half
+a minute beyond the bound, on a movement that carries few enough
+vehicles for the delay to disappear into the average. Section 6
+called this an unvalidated *guarantee*; it turns out to have been
+an actual violation, and nothing in the headline numbers hints at
+it.
+
+It is the starvation bound that binds, not the maximum green:
+the longest continuous green measured on any of these runs is
+45 s against a 60 s cap. That is the asymmetry the wrapper
+exists for. A policy that refuses to let go is easy to notice;
+one that keeps switching briskly between the three busy phases
+and quietly drops the fourth looks, by every aggregate in this
+report, like a policy that is working well.
+
+With the wrapper the same runs come inside the bound: the
+worst gap is 215 s against a documented ceiling of 245 s.
+The ceiling is above 200 s rather than equal to it because only
+one phase can hold green at a time and sumo-rl will not hand
+over until the current green has run for its minimum, so a
+phase that crosses the bound waits out the hand-over. That
+slack is forced by the environment, not chosen.
+
+**And it is close to free.** Averaged over the six scenarios
+the bounds move the DQN's waiting time by -0.14 s, with a
+largest single-scenario effect of -1.38 s - smaller than the
+seed-to-seed spread of the evaluation itself. The reason is
+that the constraint binds rarely: it fires on the handful of
+decisions where a phase has been left too long, and passes the
+policy's own choice through everywhere else.
+
+That is the useful shape of this result. The cost of making
+the junction provably fair is not a trade-off the deployment
+has to argue about; it is a rounding error, and it removes a
+failure the unconstrained policy demonstrably had.
+
+It also settles the question the violation above
+immediately raises: whether section 4's headline was won
+by starving a movement. It was not. Serving that movement
+on schedule costs -0.14 s on average, so the agent's
+advantage survives the constraint essentially intact - the
+starvation was a side effect of an objective that never
+mentioned fairness, not the mechanism the result rested
+on.
+
+The other policies the wrapper is live on (PPO, Greedy queue heuristic)
+behave the same way: the table above shows each of them both
+outside the bound unconstrained and inside it wrapped.
+
+**Why the fixed-time row is a null and not a result.** For `fixed-time-tuned` the
+signal is run by SUMO's own program: the controller's `act()` is
+never consulted, so the wrapper has nothing to override and its
+`+safe` run is bit-identical to the unwrapped one *by
+construction*. The zero in that row is arithmetic, not evidence.
+
+The plan's compliance is real, but it is established by the first
+table rather than by this one: a 104 s cycle that serves every
+phase in turn cannot hold a green past its own split or leave a
+phase unserved for two cycles. That is exactly the property the
+wrapper has to enforce on a learned policy - and, on the evidence
+above, the property the learned policies did not have.
+
+**What this does not establish.** The bounds were checked on the six
+evaluation scenarios; that is evidence about these hours of traffic,
+not a proof about all of them. What makes it a guarantee rather than
+an observation is the wrapper, and the guarantee it gives is the one
+in the class docstring - a phase is served within 200 s plus the
+hand-over slack, not within 200 s exactly.
+
+One honest caveat about the wrapper itself. Its first version counted
+a phase as served the moment the policy *asked* for it, which is not
+the same as the signal showing it green - sumo-rl refuses a change
+until the current green has run its minimum. That version enforced
+nothing while reporting compliance, which is worse than no wrapper at
+all, because it would have been believed. It now reads the phase the
+signal is actually showing; `VERIFICATION.md` section 5 records the
+measurement that caught it.
+
 <!-- END GENERATED: safety-constraints -->

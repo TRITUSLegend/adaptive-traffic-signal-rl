@@ -1,0 +1,36 @@
+Each episode is 720 decisions; budget = 122400 timesteps.
+
+========================================================================
+Training DQN on the single-intersection traffic signal
+========================================================================
+  scenario          ns_heavy (rotating over 10 demand files)
+  episode length    3600 simulated seconds (720 decisions)
+  decision interval 5 s   yellow 4 s   min green 10 s
+  reward            negative_queue_reward
+  budget            170 episodes = 122400 timesteps
+  random seed       2
+========================================================================
+  dqn episode   10 |    7200 steps | return(avg10)   -4879.6 | mean queue  54.2 veh |   3.5 min elapsed
+  dqn episode   20 |   14400 steps | return(avg10)   -4016.7 | mean queue  44.6 veh |   9.0 min elapsed
+  dqn episode   30 |   21600 steps | return(avg10)   -2445.9 | mean queue  27.2 veh |  13.0 min elapsed
+  dqn episode   40 |   28800 steps | return(avg10)   -1558.6 | mean queue  17.3 veh |  16.2 min elapsed
+  dqn episode   50 |   36000 steps | return(avg10)   -1290.0 | mean queue  14.3 veh |  19.3 min elapsed
+  dqn episode   60 |   43200 steps | return(avg10)   -1098.4 | mean queue  12.2 veh |  22.2 min elapsed
+  dqn episode   70 |   50400 steps | return(avg10)    -980.9 | mean queue  10.9 veh |  24.9 min elapsed
+  dqn episode   80 |   57600 steps | return(avg10)    -996.2 | mean queue  11.1 veh |  27.7 min elapsed
+  dqn episode   90 |   64800 steps | return(avg10)    -995.0 | mean queue  11.1 veh |  30.5 min elapsed
+  dqn episode  100 |   72000 steps | return(avg10)   -1002.5 | mean queue  11.1 veh |  33.2 min elapsed
+  dqn episode  110 |   79200 steps | return(avg10)    -992.3 | mean queue  11.0 veh |  36.0 min elapsed
+  dqn episode  120 |   86400 steps | return(avg10)    -998.2 | mean queue  11.1 veh |  38.8 min elapsed
+  dqn episode  130 |   93600 steps | return(avg10)    -977.6 | mean queue  10.9 veh |  41.6 min elapsed
+  dqn episode  140 |  100800 steps | return(avg10)   -1004.4 | mean queue  11.2 veh |  44.4 min elapsed
+  dqn episode  150 |  108000 steps | return(avg10)    -994.1 | mean queue  11.0 veh |  47.2 min elapsed
+  dqn episode  160 |  115200 steps | return(avg10)    -998.7 | mean queue  11.1 veh |  50.0 min elapsed
+  dqn episode  170 |  122400 steps | return(avg10)    -988.0 | mean queue  11.0 veh |  52.7 min elapsed
+
+Finished in 52.7 minutes.
+  model  C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\agent\models\dqn_seed2.zip
+  curve  C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\results\logs\training_curve_dqn_seed2.csv
+  mean queue over first 10 episodes:  54.2 vehicles
+  mean queue over last  10 episodes:  11.0 vehicles
+  -> improved by 80% during training

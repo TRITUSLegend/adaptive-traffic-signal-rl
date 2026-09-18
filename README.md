@@ -173,6 +173,7 @@ results/           Outputs
 sumo_setup.py      Finds SUMO; imported before any SUMO import
 smoke_test.py      End-to-end toolchain check
 pyproject.toml     Python floor, pytest and ruff configuration
+PROJECT_CONTEXT.md Full project state: status, remaining work, ground rules
 REPORT.md          Findings, method, limitations, and addenda A-E
 VERIFICATION.md    Evidence that the audited defects were fixed
 docs/PROGRESS.md   Build log and design decisions

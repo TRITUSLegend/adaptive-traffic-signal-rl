@@ -6,7 +6,8 @@ what is running, and the exact next step. `VERIFICATION.md` is the *evidence*
 document for the grader; this is the *working* document.
 
 **Started:** 2026-09-07, against the tree tagged `pre-remediation-audited`.
-**Last updated:** 2026-09-08, during the Phase 3 completion run.
+**Last updated:** 2026-09-19, after the Phase 3 chain completed and its addenda
+were published into `REPORT.md`.
 
 ---
 
@@ -52,21 +53,22 @@ Details of each fix and its evidence are in `VERIFICATION.md`.
 | `REPORT.md` numbers trace to the CSVs | pass — enforced by `test_report_matches_data.py` |
 | `VERIFICATION.md` written | pass |
 
-## Phase 3 — the five follow-up experiments
+## Phase 3 — the five follow-up experiments: COMPLETE
 
 | # | Item | State | Artifacts |
 |---|---|---|---|
-| 1 | 2 extra DQN training seeds | seed1 done; **seed2 training** | `dqn_seed1.zip`, `dqn_seed2.zip` |
-| 2 | Mixed-demand training | queued behind seed2 | `dqn_mixed.zip` |
+| 1 | 2 extra DQN training seeds | **DONE** — both trained and evaluated; addendum B in `REPORT.md` | `dqn_seed1.zip`, `dqn_seed2.zip` |
+| 2 | Mixed-demand training | **DONE** — addendum C in `REPORT.md` | `dqn_mixed.zip` |
 | 3 | Paired significance test | **DONE** — addendum A in `REPORT.md` | `eval/significance.py` |
-| 4 | PPO 400 episodes | queued third | `ppo_long.zip` |
-| 5 | Max-green / starvation cap | wrapper + tests done; evaluation queued | `SafetyConstrainedController` |
+| 4 | PPO 400 episodes | **DONE** — addendum D in `REPORT.md` | `ppo_long.zip` |
+| 5 | Max-green / starvation cap | **DONE** — wrapper, tests and evaluation; addendum E in `REPORT.md` | `SafetyConstrainedController` |
 
-### The chain currently running
+### The chain that was run
 
 `results/logs/runs/chain.sh`, launched 2026-09-08 16:59, five sequential steps.
-Progress is appended to `results/logs/runs/chain_status.txt`; each step's own
-output goes to its own log in the same directory.
+It **completed all five steps at 2026-09-08 20:09:55**; `chain_status.txt` ends
+with `CHAIN COMPLETE`. Each step's own output is in its own log in the same
+directory.
 
     1. python agent/train_dqn.py --seed 2 --tag seed2                (~55 min)
     2. python agent/train_mixed.py                                   (~55 min)
@@ -75,22 +77,25 @@ output goes to its own log in the same directory.
     5. python eval/evaluate.py --controllers dqn+safe ppo+safe
            greedy-queue+safe fixed-time-tuned+safe --append
 
-**If the chain died part-way**, `chain_status.txt` names the last step that
+**If the chain had died part-way**, `chain_status.txt` names the last step that
 finished. A training run that was interrupted leaves no model (the save happens
 at the end, or on KeyboardInterrupt), so restart that step from the top; its
 curve CSV holds whatever episodes had been flushed and is overwritten cleanly
 on restart. Steps 4 and 5 are `--append` and are safe to re-run: an episode is
-keyed by `(controller, scenario, seed)` and a re-run replaces its row.
+keyed by `(controller, scenario, seed)` and a re-run replaces its row. This
+guidance is retained because it still applies to any future re-run.
 
-### After the chain finishes
+### After the chain finished: DONE 2026-09-19
 
-    python eval/followups.py --write     # addenda B-E
-    python eval/make_tables.py --write   # must leave sections 4-5 byte-identical
-    python eval/make_plots.py
-    python -m pytest
+    python eval/followups.py --write     # addenda B-E      - done
+    python eval/make_tables.py --write   # left REPORT.md byte-identical - done
+    python eval/make_plots.py            # figures byte-identical - done
+    python -m pytest                     # 276 passed - done
 
-Then update `VERIFICATION.md` (test count, the F-series defects below) and
-commit.
+`VERIFICATION.md` was updated earlier in the same pass (test counts are now
+self-checking via `tests/test_documented_counts.py`, and the F-series defects
+are written up in its section 5). The addenda publication and the Phase 3
+artifacts are committed.
 
 **Not attempted, deliberately:** the multi-intersection corridor. Both the
 original brief and the audit deprioritise it, and starting it would trade a
