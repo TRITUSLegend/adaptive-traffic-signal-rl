@@ -59,6 +59,21 @@ def raw_rows() -> list:
         return list(csv.DictReader(fh))
 
 
+def require_results() -> None:
+    """
+    Skip while the evaluation has not been run; fail once it has.
+
+    The distinction matters and is the whole point of these checks. An empty
+    generated region BEFORE the sweep is simply work not yet done. An empty
+    region AFTER the data exists is exactly the defect the single-intersection
+    study shipped - a report promising five addenda while containing one and a
+    half, because the generator was never re-run once the data landed. Only the
+    second is a failure, so only the second fails.
+    """
+    if not paths.EVALUATION_RAW.exists():
+        pytest.skip("corridor evaluation has not been run yet")
+
+
 def region(text: str, name: str) -> str:
     begin = "<!-- BEGIN GENERATED: %s -->" % name
     end = "<!-- END GENERATED: %s -->" % name
@@ -79,10 +94,12 @@ def test_every_generated_region_exists(name):
 @pytest.mark.parametrize("name", GENERATED_REGIONS)
 def test_no_generated_region_was_left_empty(name):
     """
-    An empty region is exactly the failure the single-intersection study
-    shipped: the report promised five addenda and contained one and a half,
-    because the generator had not been re-run after the data landed.
+    An empty region once the data exists is exactly the failure the
+    single-intersection study shipped: the report promised five addenda and
+    contained one and a half, because the generator had not been re-run after
+    the data landed.
     """
+    require_results()
     body = region(report_text(), name).strip()
     assert body, ("generated region %r is empty - run:  "
                   "python corridor/make_corridor_tables.py --write" % name)
@@ -156,6 +173,7 @@ def test_throughput_is_reported_alongside_waiting_time():
     delay by refusing to admit vehicles, so the headline table must carry
     throughput in the same row.
     """
+    require_results()
     body = region(report_text(), "headline")
     header = body.strip().splitlines()[0].lower()
     assert "wait" in header
