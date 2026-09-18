@@ -312,3 +312,95 @@ def test_loading_onto_a_longer_corridor_reuses_agents_cyclically(tmp_path):
     longer = MA2C.load(path, ts_ids=["K1", "K2", "K3", "K4", "K5"])
     assert set(longer.nets) == {"K1", "K2", "K3", "K4", "K5"}
     assert longer.neighbours["K3"] == ["K2", "K4"]
+
+
+# ---------------------------------------------------------------------------
+# Simultaneity: neighbour policy sharing uses the PREVIOUS step, for everyone
+# ---------------------------------------------------------------------------
+def test_acting_is_independent_of_the_order_agents_are_given_in():
+    """
+    The first version updated each agent's policy inside the decision loop, so
+    the second agent processed saw the first's *current* policy while the
+    third's was still one step old - and the corridor's behaviour depended on
+    dictionary iteration order.
+
+    In Chu et al. the agents decide simultaneously and share the previous
+    step's policies, which is also the only thing realisable in a deployment:
+    an agent cannot see a decision that has not been made yet.
+    """
+    obs = fake_observations({"J1": 0.2, "J2": 0.5, "J3": 0.8})
+    reversed_obs = {ts: obs[ts] for ts in reversed(IDS)}
+
+    forward = MA2C(IDS, seed=7)
+    backward = MA2C(IDS, seed=7)
+    for _ in range(3):
+        a = forward.act(obs, deterministic=True)
+        b = backward.act(reversed_obs, deterministic=True)
+        assert a == b
+
+
+def test_one_agents_decision_does_not_reach_another_within_the_same_step():
+    """
+    Directly: J1's input must be identical whether or not J2 has already been
+    processed in this step.
+    """
+    obs = fake_observations({ts: 0.4 for ts in IDS})
+    model = MA2C(IDS, seed=8)
+
+    before = model.build_input("J1", obs).copy()
+    model.act(obs)
+    used = model.last_inputs["J1"]
+    assert np.allclose(before, used), (
+        "J1's input changed during the step it was deciding in")
+
+
+def test_the_stored_input_is_the_one_the_action_came_from():
+    """
+    The gradient bug. The trainer stores `last_inputs`; if that disagreed with
+    what `act` fed the network, the policy gradient would be evaluated at a
+    state that never produced the action.
+    """
+    import torch
+    import torch.nn.functional as F
+
+    obs = fake_observations({"J1": 0.1, "J2": 0.6, "J3": 0.9})
+    model = MA2C(IDS, seed=9)
+    actions = model.act(obs, deterministic=True)
+
+    for ts, x in model.last_inputs.items():
+        with torch.no_grad():
+            logits, _ = model.nets[ts](torch.from_numpy(x).float().unsqueeze(0))
+        replayed = int(torch.argmax(F.softmax(logits, dim=-1), dim=-1).item())
+        assert replayed == actions[ts], (
+            "%s's stored input replays to action %d but %d was taken, so the "
+            "gradient would be evaluated at a state that did not produce the "
+            "action" % (ts, replayed, actions[ts]))
+
+
+def test_last_inputs_covers_exactly_the_agents_that_acted():
+    model = MA2C(IDS, seed=10)
+    obs = fake_observations({"J1": 0.3, "J2": 0.3})
+    actions = model.act(obs)
+    assert set(model.last_inputs) == set(actions) == {"J1", "J2"}
+
+
+def test_neighbour_policies_do_advance_between_steps():
+    """
+    Simultaneity must not become staleness: the previous step's policies are
+    shared, and they do change from one step to the next.
+    """
+    model = MA2C(IDS, seed=11)
+    obs = fake_observations({ts: 0.5 for ts in IDS})
+    model.act(obs)
+    first = model.last_inputs["J2"].copy()
+    model.act(obs)
+    second = model.last_inputs["J2"]
+    assert not np.allclose(first[-MAX_NEIGHBOURS * N_ACTIONS:],
+                           second[-MAX_NEIGHBOURS * N_ACTIONS:])
+
+
+def test_resetting_clears_the_stored_inputs():
+    model = MA2C(IDS, seed=12)
+    model.act(fake_observations({ts: 0.5 for ts in IDS}))
+    model.reset_policies()
+    assert model.last_inputs == {}

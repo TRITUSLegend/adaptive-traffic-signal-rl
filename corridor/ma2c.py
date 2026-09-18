@@ -146,6 +146,10 @@ class MA2C:
         self._last_policy = {ts: np.full(N_ACTIONS, 1.0 / N_ACTIONS,
                                          dtype=np.float32)
                              for ts in self.ts_ids}
+        # The inputs the most recent `act` actually used. The trainer stores
+        # these rather than rebuilding, so the gradient is evaluated at the
+        # state that produced the action.
+        self.last_inputs = {}
 
     # -- input assembly --------------------------------------------------
     def build_input(self, ts: str, observations: dict) -> np.ndarray:
@@ -184,14 +188,43 @@ class MA2C:
 
     # -- acting ----------------------------------------------------------
     def act(self, observations: dict, deterministic: bool = False) -> dict:
-        """Choose a phase for every junction present in `observations`."""
-        actions, values, log_probs = {}, {}, {}
+        """
+        Choose a phase for every junction present in `observations`.
+
+        THE ORDER OF THESE THREE STEPS IS THE ALGORITHM
+        -----------------------------------------------
+        Every agent's input is built FIRST, from the policies of the previous
+        timestep; then every agent decides; only then are the policies
+        replaced. The first version updated `_last_policy[ts]` inside the
+        decision loop, which broke two things at once:
+
+          * **Order dependence.** The second agent processed saw the first
+            agent's *current* policy while the third's was still one step old,
+            so the corridor's behaviour depended on dictionary iteration order.
+            Neighbour policy sharing in Chu et al. uses the previous step's
+            policies for all neighbours - it has to, because in a real
+            deployment the agents decide simultaneously and cannot see a
+            decision that has not been made yet.
+          * **A gradient computed against the wrong state.** The trainer built
+            its stored input from all-old policies, but the action came from a
+            partially-updated one. Storing s while the action came from s'
+            means the policy gradient is evaluated at a state that did not
+            produce the action - the update is not wrong in an obvious,
+            crashing way, it is just quietly not the gradient of the thing
+            being maximised.
+
+        `self.last_inputs` therefore holds exactly the vectors these actions
+        were computed from, and the trainer stores those rather than rebuilding
+        them, so the two can no longer disagree.
+        """
+        inputs = {ts: self.build_input(ts, observations)
+                  for ts in observations if ts in self.nets}
+
+        actions, values, log_probs, policies = {}, {}, {}, {}
         with torch.no_grad():
-            for ts in observations:
-                if ts not in self.nets:
-                    continue
-                x = torch.from_numpy(self.build_input(ts, observations)).float()
-                logits, value = self.nets[ts](x.unsqueeze(0))
+            for ts, x in inputs.items():
+                logits, value = self.nets[ts](
+                    torch.from_numpy(x).float().unsqueeze(0))
                 probs = F.softmax(logits, dim=-1)
                 if deterministic:
                     action = int(torch.argmax(probs, dim=-1).item())
@@ -200,7 +233,11 @@ class MA2C:
                 actions[ts] = action
                 values[ts] = float(value.item())
                 log_probs[ts] = float(torch.log(probs[0, action] + 1e-8).item())
-                self._last_policy[ts] = probs.squeeze(0).numpy().astype(np.float32)
+                policies[ts] = probs.squeeze(0).numpy().astype(np.float32)
+
+        # Replaced only once every agent has decided.
+        self._last_policy.update(policies)
+        self.last_inputs = inputs
         self._pending = {"values": values, "log_probs": log_probs}
         return actions
 
@@ -253,6 +290,7 @@ class MA2C:
         for ts in self.ts_ids:
             self._last_policy[ts] = np.full(N_ACTIONS, 1.0 / N_ACTIONS,
                                             dtype=np.float32)
+        self.last_inputs = {}
 
     # -- persistence -----------------------------------------------------
     def save(self, path: Path) -> None:

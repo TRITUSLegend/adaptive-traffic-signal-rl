@@ -87,9 +87,12 @@ def train(episodes: int, seed: int, n_junctions: int, tag: str = "",
             done = False
 
             while not done:
-                inputs = {ts: model.build_input(ts, observations)
-                          for ts in observations if ts in model.nets}
                 actions = model.act(observations)
+                # The inputs `act` actually used, not a rebuild of them. A
+                # rebuild would be computed after the neighbour policies had
+                # moved on, so the gradient would be evaluated at a state that
+                # did not produce the action.
+                inputs = model.last_inputs
 
                 with quiet_stdout():
                     observations, rewards, dones, info = env.step(actions)
