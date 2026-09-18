@@ -299,9 +299,20 @@ Two kinds, which answer different questions and are not pooled.
 
 **Clean transfer — `corridor2` and `corridor5`.** Built by the same generator,
 so every junction has the same 4 phases and 8 lanes the policies trained on.
-Nothing is adapted, so the measured change is topology and nothing else: a
-different number of junctions, a different neighbour structure, different
-interior-versus-edge roles. This is the unconfounded measurement.
+The observation projection is exactly a no-op here, so for the independent
+learners the measured change is topology and nothing else: a different number
+of junctions, a different neighbour structure, different interior-versus-edge
+roles. This is the unconfounded measurement.
+
+> **With one exception, which belongs to MA2C alone.** The independent learners
+> share parameters, so one network drives a corridor of any length without
+> adaptation. MA2C does not share parameters — it has a network *per junction* —
+> so on `corridor5` its three trained agents are reused cyclically to cover five
+> junctions. That is an approximation, and it means MA2C's `corridor5` number is
+> not clean in the way the others are. Its `corridor2` number is, since two of
+> its three agents simply go unused. This is the price of the specialisation
+> that makes MA2C interesting, and it is the mirror image of the trade-off
+> recorded in limitation 2.
 
 **Real-topology transfer — `cologne3`.** Much stronger evidence, because we did
 not draw it. But its junctions are structurally incompatible with ours:
