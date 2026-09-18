@@ -1,0 +1,322 @@
+"""
+MA2C - multi-agent advantage actor-critic for the corridor, written from scratch.
+
+WHY FROM SCRATCH
+----------------
+MA2C is not in stable-baselines3 and there is no maintained SB3-compatible
+implementation.  The alternatives were a heavy MARL framework (MARLlib/RLlib
+needs Ray, which is poor on a CPU-only Windows box) or research code coupled to
+a different benchmark.  This project already hand-rolled its Student-t and
+exact Wilcoxon distributions rather than adding SciPy, and covered them with
+tests against published values; the same trade applies here.
+
+WHAT MA2C IS (Chu et al., IEEE T-ITS 2020), AND WHAT IS IMPLEMENTED
+-------------------------------------------------------------------
+Independent actor-critics, one per intersection, made cooperative by three
+mechanisms - all three are implemented:
+
+  1. **Neighbour observation sharing.**  An agent's input is its own
+     observation concatenated with its neighbours', scaled down by a spatial
+     discount factor ALPHA.  The scaling says "your neighbour's queue matters
+     to you, but less than your own".
+  2. **Neighbour policy sharing.**  The neighbours' most recent action
+     probabilities are appended to the input.  This is the part that addresses
+     non-stationarity: an agent that can see what its neighbours are about to
+     do is not chasing a moving target blindly.
+  3. **Spatially discounted reward.**  Agent i is rewarded for its own queue
+     plus ALPHA times its neighbours'.  Without this, three selfish agents
+     optimise three junctions and nobody optimises the corridor.
+
+DELIBERATE DEVIATION: NO LSTM
+-----------------------------
+The published algorithm puts an LSTM in each agent.  v1 here does not, and
+CORRIDOR_PLAN.md section 10 records the decision.  The recurrent state
+addresses partial observability *within* an agent and is orthogonal to the
+coordination question this study asks; it would also interact with the 5 s
+decision interval and the episode-boundary reset in ways needing their own
+tests to trust.
+
+This matters when reading the result: if MA2C underperforms the simpler
+independent learners, the missing LSTM is a live candidate explanation and
+CORRIDOR_REPORT.md says so rather than concluding that MA2C does not work.
+
+WHY THE NEIGHBOUR INPUT IS PADDED
+---------------------------------
+J2 has two neighbours; J1 and J3 have one.  Inputs are padded to a fixed
+MAX_NEIGHBOURS so that every agent's network has the same shape - which is
+also what lets a trained MA2C policy be evaluated zero-shot on a corridor of a
+different length, where junctions have different neighbour counts.  Padding is
+zeros, which is the same value a neighbour with no queue and a uniform policy
+would contribute, so it is a neutral filler rather than a signal.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Spatial discount on neighbour observations and rewards. Chu et al. report
+# 0.75 as a good default; it is the weight of "my neighbour's problem" relative
+# to "my problem".
+ALPHA = 0.75
+
+# Every junction in a linear corridor has at most two signalised neighbours.
+MAX_NEIGHBOURS = 2
+
+OBS_DIM = 21        # sumo-rl default per junction: phase one-hot + densities + queues
+N_ACTIONS = 4       # the four green phases
+
+GAMMA = 0.95        # ~100 s horizon ~ one signal cycle; matches the rest of the project
+HIDDEN = 64
+LEARNING_RATE = 3e-4
+ENTROPY_COEF = 0.01
+VALUE_COEF = 0.5
+MAX_GRAD_NORM = 0.5
+ROLLOUT = 20        # n-step return length
+
+
+def agent_input_dim() -> int:
+    """Own observation + discounted neighbour observations + neighbour policies."""
+    return OBS_DIM + MAX_NEIGHBOURS * OBS_DIM + MAX_NEIGHBOURS * N_ACTIONS
+
+
+def neighbours(ts_ids: list) -> dict:
+    """
+    Adjacency along a linear arterial: each junction neighbours the next.
+
+    `ts_ids` must be in corridor order, which is how `build_corridor.py` names
+    them (J1, J2, ... west to east). For a network we did not build - cologne3
+    in the transfer experiment - the ids are sorted and treated as a chain,
+    which is an approximation and is flagged where it is used.
+    """
+    result = {}
+    for i, ts in enumerate(ts_ids):
+        near = []
+        if i > 0:
+            near.append(ts_ids[i - 1])
+        if i + 1 < len(ts_ids):
+            near.append(ts_ids[i + 1])
+        result[ts] = near
+    return result
+
+
+class ActorCritic(nn.Module):
+    """One agent's policy and value function, with separate heads."""
+
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.body = nn.Sequential(
+            nn.Linear(input_dim, HIDDEN), nn.ReLU(),
+            nn.Linear(HIDDEN, HIDDEN), nn.ReLU(),
+        )
+        self.policy = nn.Linear(HIDDEN, N_ACTIONS)
+        self.value = nn.Linear(HIDDEN, 1)
+
+    def forward(self, x):
+        h = self.body(x)
+        return self.policy(h), self.value(h).squeeze(-1)
+
+
+class MA2C:
+    """
+    The full multi-agent learner: one ActorCritic per junction.
+
+    Parameters are NOT shared between agents - that is what makes this MA2C
+    rather than the parameter-sharing independent learners in vec_env.py, and
+    it is why MA2C can specialise to the interior junction's different role.
+    """
+
+    def __init__(self, ts_ids: list, alpha: float = ALPHA, seed: int = 0):
+        self.ts_ids = list(ts_ids)
+        self.alpha = alpha
+        self.neighbours = neighbours(self.ts_ids)
+        torch.manual_seed(seed)
+        self.nets = {ts: ActorCritic(agent_input_dim()) for ts in self.ts_ids}
+        self.optimisers = {
+            ts: torch.optim.Adam(net.parameters(), lr=LEARNING_RATE)
+            for ts, net in self.nets.items()}
+        # Last action distribution per agent, for neighbour policy sharing.
+        self._last_policy = {ts: np.full(N_ACTIONS, 1.0 / N_ACTIONS,
+                                         dtype=np.float32)
+                             for ts in self.ts_ids}
+
+    # -- input assembly --------------------------------------------------
+    def build_input(self, ts: str, observations: dict) -> np.ndarray:
+        """Own observation, then each neighbour's observation and policy."""
+        own = np.asarray(observations[ts], dtype=np.float32)
+        parts = [own]
+
+        near = self.neighbours.get(ts, [])
+        for i in range(MAX_NEIGHBOURS):
+            if i < len(near) and near[i] in observations:
+                parts.append(self.alpha *
+                             np.asarray(observations[near[i]], dtype=np.float32))
+            else:
+                parts.append(np.zeros(OBS_DIM, dtype=np.float32))
+        for i in range(MAX_NEIGHBOURS):
+            if i < len(near):
+                parts.append(self._last_policy[near[i]])
+            else:
+                parts.append(np.zeros(N_ACTIONS, dtype=np.float32))
+        return np.concatenate(parts)
+
+    def shaped_rewards(self, rewards: dict) -> dict:
+        """
+        Spatially discounted reward: own queue plus ALPHA times the neighbours'.
+
+        This is the mechanism that makes the agents cooperative rather than
+        three selfish controllers sharing a road.
+        """
+        shaped = {}
+        for ts in self.ts_ids:
+            total = float(rewards.get(ts, 0.0))
+            for near in self.neighbours.get(ts, []):
+                total += self.alpha * float(rewards.get(near, 0.0))
+            shaped[ts] = total
+        return shaped
+
+    # -- acting ----------------------------------------------------------
+    def act(self, observations: dict, deterministic: bool = False) -> dict:
+        """Choose a phase for every junction present in `observations`."""
+        actions, values, log_probs = {}, {}, {}
+        with torch.no_grad():
+            for ts in observations:
+                if ts not in self.nets:
+                    continue
+                x = torch.from_numpy(self.build_input(ts, observations)).float()
+                logits, value = self.nets[ts](x.unsqueeze(0))
+                probs = F.softmax(logits, dim=-1)
+                if deterministic:
+                    action = int(torch.argmax(probs, dim=-1).item())
+                else:
+                    action = int(torch.multinomial(probs, 1).item())
+                actions[ts] = action
+                values[ts] = float(value.item())
+                log_probs[ts] = float(torch.log(probs[0, action] + 1e-8).item())
+                self._last_policy[ts] = probs.squeeze(0).numpy().astype(np.float32)
+        self._pending = {"values": values, "log_probs": log_probs}
+        return actions
+
+    # -- learning --------------------------------------------------------
+    def update(self, batch: dict) -> dict:
+        """
+        One A2C update per agent from a rollout of n-step returns.
+
+        `batch[ts]` holds lists of inputs, actions, shaped rewards and the
+        bootstrap value of the state the rollout ended in.
+        """
+        losses = {}
+        for ts, data in batch.items():
+            if not data["inputs"]:
+                continue
+            inputs = torch.from_numpy(np.asarray(data["inputs"],
+                                                 dtype=np.float32))
+            actions = torch.from_numpy(np.asarray(data["actions"],
+                                                  dtype=np.int64))
+
+            # Discounted n-step returns, bootstrapped from the final value.
+            returns = []
+            running = data["bootstrap"]
+            for reward in reversed(data["rewards"]):
+                running = reward + GAMMA * running
+                returns.append(running)
+            returns.reverse()
+            returns = torch.tensor(returns, dtype=torch.float32)
+
+            logits, values = self.nets[ts](inputs)
+            advantage = returns - values
+            log_probs = F.log_softmax(logits, dim=-1)
+            chosen = log_probs.gather(1, actions.unsqueeze(1)).squeeze(1)
+
+            policy_loss = -(chosen * advantage.detach()).mean()
+            value_loss = advantage.pow(2).mean()
+            entropy = -(log_probs.exp() * log_probs).sum(dim=-1).mean()
+            loss = (policy_loss + VALUE_COEF * value_loss
+                    - ENTROPY_COEF * entropy)
+
+            self.optimisers[ts].zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.nets[ts].parameters(), MAX_GRAD_NORM)
+            self.optimisers[ts].step()
+            losses[ts] = float(loss.item())
+        return losses
+
+    def reset_policies(self) -> None:
+        """Forget neighbour policies at an episode boundary."""
+        for ts in self.ts_ids:
+            self._last_policy[ts] = np.full(N_ACTIONS, 1.0 / N_ACTIONS,
+                                            dtype=np.float32)
+
+    # -- persistence -----------------------------------------------------
+    def save(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "ts_ids": self.ts_ids,
+            "alpha": self.alpha,
+            "input_dim": agent_input_dim(),
+            "nets": {ts: net.state_dict() for ts, net in self.nets.items()},
+        }, path)
+
+    @classmethod
+    def load(cls, path: Path, ts_ids: list = None):
+        """
+        Rebuild a saved learner.
+
+        `ts_ids` overrides the saved ids, which is how a corridor3 policy is
+        evaluated on a network with different junction names: the agents are
+        matched positionally along the corridor.  Where the target has more
+        junctions than the policy was trained with, the saved agents are reused
+        cyclically - an approximation, flagged wherever a transfer number is
+        reported.
+        """
+        blob = torch.load(path, map_location="cpu", weights_only=False)
+        saved_ids = list(blob["ts_ids"])
+        model = cls(saved_ids, alpha=blob["alpha"])
+        for ts, state in blob["nets"].items():
+            model.nets[ts].load_state_dict(state)
+        if ts_ids is not None and list(ts_ids) != saved_ids:
+            model = model._remap(list(ts_ids), saved_ids)
+        return model
+
+    def _remap(self, new_ids: list, saved_ids: list):
+        """Reassign trained agents to a different set of junction ids, in order."""
+        remapped = MA2C(new_ids, alpha=self.alpha)
+        for i, ts in enumerate(new_ids):
+            source = saved_ids[i % len(saved_ids)]
+            remapped.nets[ts].load_state_dict(self.nets[source].state_dict())
+        return remapped
+
+
+class MA2CController:
+    """
+    Drives a trained MA2C through the corridor's shared episode runner.
+
+    It needs the whole observation dict rather than one junction's vector,
+    because an agent's input includes its neighbours' observations - which is
+    why MA2C cannot reuse `IndependentPolicyController`.
+    """
+
+    uses_env_control = True
+
+    def __init__(self, model: MA2C, name: str = "ma2c", env=None):
+        self.model = model
+        self.name = name
+        self.env = env
+
+    def on_episode_start(self, env) -> None:
+        self.env = env
+        self.model.reset_policies()
+
+    def act(self, observations: dict) -> dict:
+        return self.model.act(observations, deterministic=True)
+
+
+def ma2c_factory(model: MA2C, name: str = "ma2c"):
+    return lambda env: MA2CController(model, name, env)

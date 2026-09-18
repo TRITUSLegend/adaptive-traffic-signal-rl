@@ -549,3 +549,79 @@ In order, with a checkpoint after step 3 before any long training run:
 
 **I am stopping here and awaiting your review.** No corridor code has been
 written, no dependency added, nothing trained.
+
+---
+
+## 10. Resolution of the open questions (appended 2026-09-19, post-approval)
+
+Approved: plan as proposed, **1 seed**, **3-intersection corridor**. Questions 1
+and 5 of §8 are therefore settled. The remaining three were delegated to my
+judgment; here is what I chose and why. This section is appended — nothing above
+has been rewritten.
+
+### Q2 — network access for open data: NOT USED, and not needed
+
+**Decision: calibrate from `cologne3` itself. No download.**
+
+Rather than fetch Toronto TMC counts, I extracted the real per-entry flows from
+the `cologne3` route file already on disk. Measured today:
+
+| Quantity | Value |
+|---|---|
+| Busiest hour (06:31–07:59, real morning peak) | **2,856 veh/h** across the 3-junction corridor |
+| Dominant entry #1 | 550 veh/h (19.3%) |
+| Dominant entry #2 | 454 veh/h (15.9%) |
+| Distinct entry edges | 33; the top 10 carry 85% of demand |
+
+The two dominant entries are the arterial ends; the long tail is side streets.
+That is exactly the quantity needed to calibrate the synthetic corridor, and it
+comes from real mobility data with **zero acquisition risk and full
+reproducibility** — any reader with `sumo-rl` installed can recompute these four
+numbers.
+
+This is strictly better than a download: an external CSV would have to be
+vendored into the repo and trusted, whereas this derives from a dependency the
+project already pins. The resulting calibration is recorded in
+`corridor/generate_corridor_routes.py` with the arithmetic shown.
+
+### Q3 — is `cologne3` acceptable as *the* real-data component: YES
+
+Being bundled with a dependency is a strength, not a weakness. It is the
+published RESCO benchmark (Ault & Sharon, NeurIPS 2021 D&B), derived from the
+TAPAS Cologne mobility model, and it is used unmodified. Under Q2 it now does
+**three** jobs rather than two: real-data calibration source, zero-shot
+topology-transfer target, and the real-demand evaluation scenario itself.
+
+**The honest limit, which the report will state:** `cologne3` calibrates the
+*volumes and the arterial/side-street split*. It does not give us turning
+fractions for our synthetic geometry, so the existing 60/20/20 straight/left/
+right split is carried over from the single-intersection study unchanged. That
+is an assumption inherited, not measured.
+
+### Q4 — MA2C without the LSTM in v1: CONFIRMED
+
+Omitted, as flagged in §3. The neighbour-observation and neighbour-policy
+sharing plus the spatially discounted reward are the parts that make MA2C
+*multi-agent*; the LSTM addresses partial observability within an agent and is
+orthogonal to the coordination question this study asks. Recurrent state would
+also interact with the 5 s decision interval and the episode-boundary reset in
+ways that need their own tests to trust.
+
+**This is a deviation from the published algorithm and will be labelled as such
+in `CORRIDOR_REPORT.md`**, not buried. If MA2C underperforms, the missing LSTM
+is a candidate explanation and the report will say so rather than concluding
+that MA2C does not work.
+
+### Calibration actually adopted
+
+| Scenario | Arterial (each end) | Side street (each of 6) | Total | Role |
+|---|---|---|---|---|
+| **`calibrated`** | 500 veh/h | 200 veh/h | 2,200 veh/h | **Training scenario**; derived from cologne3 above |
+| `balanced` | 350 veh/h | 350 veh/h | 2,800 veh/h | Symmetric — the case fixed-time is designed for |
+| `peak` | 650 veh/h | 260 veh/h | 2,860 veh/h | `calibrated` × 1.3 |
+| `reverse` | 200 veh/h | 500 veh/h | 3,400 veh/h | Demand shift: side streets dominate |
+
+`calibrated`'s 2,200 veh/h sits just under cologne3's real 2,856 veh/h, and the
+arterial kerb lane runs at v/c ≈ 0.73 against the 550 veh/h capacity the
+single-intersection study derived — busy enough to separate controllers, below
+the spillback regime that would invalidate the measurement.
