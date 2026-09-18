@@ -169,10 +169,17 @@ baseline is SUMO's own implementation, so it is standard and independently
 specified rather than ours.
 
 **A consequence to note before reading §6:** SUMO drives both fixed-time and
-actuated, so their `act()` is never consulted and the `+safe` wrapper is inert
-on them *by construction* — the same null `REPORT.md`'s Addendum E documents for
-`fixed-time-tuned+safe`. Their bounds come instead from the program's own
-`minDur`/`maxDur`, pinned to the project's MIN_GREEN and MAX_GREEN.
+actuated itself, so their `act()` is never consulted and they cannot be
+perturbed at the observation level at all. Their bounds come from the program's
+own `minDur`/`maxDur`, pinned to the project's MIN_GREEN and MAX_GREEN, so every
+controller here still pays an identical amber and minimum-green cost. §6.2
+returns to what that structural immunity does and does not mean.
+
+The maximum-green and anti-starvation wrapper from the single-intersection study
+(`REPORT.md`, Addendum E) is available for corridor controllers and is covered by
+tests, but **no `+safe` sweep was run here and none is reported**. Whether the
+corridor's learned policies violate the starvation bound the way the
+single-intersection ones did is an open question this study does not answer.
 
 ---
 
