@@ -45,6 +45,20 @@ REPORT = ROOT / "CORRIDOR_REPORT.md"
 GENERATED_REGIONS = ["headline", "reduction", "throughput", "convergence",
                      "detector", "margin", "transfer"]
 
+# Each region is built from a different source, so each has its own
+# precondition. Without this the whole set would be gated on the clean sweep
+# alone, and a region whose data genuinely had not been produced yet would fail
+# pointing at the wrong missing file.
+REGION_SOURCE = {
+    "headline": lambda: paths.EVALUATION_RAW,
+    "reduction": lambda: paths.EVALUATION_RAW,
+    "throughput": lambda: paths.EVALUATION_RAW,
+    "convergence": lambda: paths.training_curve("idqn"),
+    "detector": lambda: paths.ROBUSTNESS_RAW,
+    "margin": lambda: paths.ROBUSTNESS_RAW,
+    "transfer": lambda: paths.TRANSFER_RAW,
+}
+
 
 def report_text() -> str:
     if not REPORT.exists():
@@ -99,10 +113,14 @@ def test_no_generated_region_was_left_empty(name):
     contained one and a half, because the generator had not been re-run after
     the data landed.
     """
-    require_results()
+    source = REGION_SOURCE[name]()
+    if not source.exists():
+        pytest.skip("%s has not been produced yet, so region %r cannot be "
+                    "filled" % (source.name, name))
     body = region(report_text(), name).strip()
-    assert body, ("generated region %r is empty - run:  "
-                  "python corridor/make_corridor_tables.py --write" % name)
+    assert body, ("generated region %r is empty although %s exists - run:  "
+                  "python corridor/make_corridor_tables.py --write"
+                  % (name, source.name))
     assert "|" in body, "region %r contains no table" % name
 
 
