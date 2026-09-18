@@ -118,15 +118,34 @@ def training_curves() -> bool:
 
     fig, ax = plt.subplots(figsize=(9, 4.6), facecolor=SURFACE, dpi=FIG_DPI)
     style(ax)
+    ends = []
     for name, label, rows in series:
         episodes = [int(r["episode"]) for r in rows]
         queues = smooth([float(r["mean_queue_veh"]) for r in rows])
         ax.plot(episodes, queues, color=COLOURS[name], linewidth=2,
                 label=label, zorder=3)
-        # Direct label at the line's end: identity without reading the legend.
-        ax.annotate(label, xy=(episodes[-1], queues[-1]),
-                    xytext=(6, 0), textcoords="offset points",
-                    color=COLOURS[name], fontsize=9, va="center")
+        ends.append([queues[-1], episodes[-1], label, COLOURS[name]])
+
+    # Direct labels at each line's end give identity without a legend lookup -
+    # but three learners that converge to within a vehicle of each other put
+    # three labels on top of one another, which is what happened the first time
+    # this was rendered with plausible data.
+    #
+    # The separation has to be measured against the AXIS range, not against the
+    # spread of the endpoints. The first attempt used the spread: the three
+    # curves ended within ~3 vehicles of each other, so it reserved about one
+    # vehicle per label - roughly five pixels, against a nine-point font that
+    # needs twelve. The labels still overlapped, just by slightly less.
+    bottom, top = ax.get_ylim()
+    min_gap = 0.045 * (top - bottom)
+    ends.sort(key=lambda e: e[0])
+    for i in range(1, len(ends)):
+        if ends[i][0] - ends[i - 1][0] < min_gap:
+            ends[i][0] = ends[i - 1][0] + min_gap
+    for y, x, label, colour in ends:
+        ax.annotate(label, xy=(x, y), xytext=(6, 0),
+                    textcoords="offset points", color=colour, fontsize=9,
+                    va="center")
 
     ax.set_xlabel("Training episode (one simulated hour each)", color=INK_SOFT,
                   fontsize=10)
@@ -275,8 +294,14 @@ def transfer() -> bool:
                  "cologne3 is real geometry and needs an observation "
                  "projection; the corridors do not",
                  color=INK, fontsize=11, loc="left", pad=12)
-    ax.legend(frameon=False, fontsize=9, labelcolor=INK_SOFT, ncol=3)
-    fig.subplots_adjust(top=0.80)
+    # Below the axes, not inside them. An in-axes legend collided with the
+    # tallest bar the first time this was rendered with data, and where the
+    # tallest bar lands is a property of the results rather than something the
+    # figure can assume - so the legend is placed where no bar can reach it.
+    fig.legend(*ax.get_legend_handles_labels(), frameon=False, fontsize=9,
+               labelcolor=INK_SOFT, ncol=len(present), loc="lower center",
+               bbox_to_anchor=(0.5, -0.04))
+    fig.subplots_adjust(top=0.80, bottom=0.18)
     save(fig, "corridor_transfer.png")
     return True
 

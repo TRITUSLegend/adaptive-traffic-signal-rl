@@ -1,2 +1,4 @@
 Training idqn for 170 episodes (367200 timesteps across 3 junctions)
   idqn episode    1 | return   -10858.1 | mean queue  120.6 veh |   1.2 min elapsed
+  idqn episode   10 | return    -8438.8 | mean queue   93.8 veh |  11.2 min elapsed
+  idqn episode   20 | return    -3493.5 | mean queue   38.8 veh |  20.8 min elapsed
