@@ -120,7 +120,8 @@ def make_corridor_env(scenario: str, seed: int, fixed_ts: bool,
                       actuated: bool = False,
                       tripinfo: Path | None = None,
                       net_override: Path | None = None,
-                      route_override: Path | None = None):
+                      route_override: Path | None = None,
+                      begin_time: int = 0):
     """
     Build a multi-agent sumo-rl environment for one corridor episode.
 
@@ -162,7 +163,12 @@ def make_corridor_env(scenario: str, seed: int, fixed_ts: bool,
         net_file=str(net),
         route_file=str(route),
         use_gui=False,
-        num_seconds=EPISODE_SECONDS,
+        # `num_seconds` is an absolute end time in sumo-rl, not a duration, so
+        # a non-zero start has to be added to keep the episode one hour long.
+        # cologne3's demand only exists from 06:31, so its transfer episode
+        # starts at its busiest hour rather than at t=0 where the road is empty.
+        begin_time=begin_time,
+        num_seconds=begin_time + EPISODE_SECONDS,
         delta_time=DELTA_TIME,
         yellow_time=YELLOW_TIME,
         min_green=MIN_GREEN,
@@ -197,8 +203,8 @@ def run_corridor_episode(controller_factory, controller_name: str, scenario: str
                          quiet: bool = True, perturbation=None,
                          net_override: Path | None = None,
                          route_override: Path | None = None,
-                         network_label: str | None = None
-                         ) -> CorridorEpisodeResult:
+                         network_label: str | None = None,
+                         begin_time: int = 0) -> CorridorEpisodeResult:
     """
     Simulate one hour on the corridor under one controller.
 
@@ -225,7 +231,8 @@ def run_corridor_episode(controller_factory, controller_name: str, scenario: str
             env = make_corridor_env(
                 scenario, seed, fixed_ts=fixed_ts, n_junctions=n_junctions,
                 actuated=actuated, tripinfo=tripinfo,
-                net_override=net_override, route_override=route_override)
+                net_override=net_override, route_override=route_override,
+                begin_time=begin_time)
         controller = controller_factory(env)
 
         result = CorridorEpisodeResult(
