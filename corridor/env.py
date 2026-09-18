@@ -82,9 +82,17 @@ class CorridorEpisodeResult:
     vehicles_not_inserted: int = 0
 
     # Filled from the tripinfo report by parse_tripinfo().
+    #
+    # These names must match the keys that function actually returns. An
+    # earlier version declared `mean_travel_time_s`, which parse_tripinfo does
+    # not produce, so nothing ever set it and it would have been published as a
+    # column of zeros - the same shape as defect D6, where an honesty metric
+    # failed silently to zero and a broken measurement was indistinguishable
+    # from a clean result. `test_corridor_metrics.py` now pins the agreement.
     mean_waiting_time_s: float = 0.0
-    mean_travel_time_s: float = 0.0
     mean_time_loss_s: float = 0.0
+    mean_trip_duration_s: float = 0.0
+    mean_speed_mps: float = 0.0
     throughput_veh: int = 0
     vehicles_entered: int = 0
 
@@ -100,8 +108,9 @@ class CorridorEpisodeResult:
             "failure_rate": self.failure_rate,
             "failure_mode": self.failure_mode,
             "mean_waiting_time_s": round(self.mean_waiting_time_s, 3),
-            "mean_travel_time_s": round(self.mean_travel_time_s, 3),
             "mean_time_loss_s": round(self.mean_time_loss_s, 3),
+            "mean_trip_duration_s": round(self.mean_trip_duration_s, 3),
+            "mean_speed_mps": round(self.mean_speed_mps, 3),
             "mean_queue_length_veh": round(self.mean_queue_length_veh, 3),
             "max_queue_length_veh": round(self.max_queue_length_veh, 3),
             "throughput_veh": self.throughput_veh,

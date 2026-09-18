@@ -152,15 +152,50 @@ class GreedyQueueCorridorController(CorridorController):
         return slots
 
     def act(self, observations: dict) -> dict:
+        """
+        Serve the longest queue, reading the queues FROM THE OBSERVATION.
+
+        The obvious implementation asks the live simulation instead
+        (`signal.get_lanes_queue()`), and the first version here did. That is
+        wrong for one decisive reason: it bypasses the detector-failure
+        wrapper, which corrupts the observation and nothing else. Measured on
+        the `calibrated` hour, this controller returned bit-identical results
+        at 0%, 12.5%, 25% and 50% of detectors failed - 31.837 s every time -
+        because it was never reading the failed detectors at all.
+
+        Published as-is, that table would have said the queue heuristic is
+        perfectly robust to losing half its sensors. It is not; it simply had
+        an oracle. This is the same shape as defect F4 in the single-
+        intersection study, where a safety wrapper produced bit-identical
+        traces and the identity was misread as compliance.
+
+        The observation holds exactly what a detector would report: sumo-rl
+        builds its queue block from `get_lanes_queue()` in `signal.lanes`
+        order, which is the order `_phase_lane_slots` indexes. So under clean
+        conditions this is numerically identical to the old version, and no
+        clean number changes - it only stops the controller seeing through a
+        failure it is supposed to suffer.
+        """
         actions = {}
-        for ts_id in observations:
+        for ts_id, observation in observations.items():
             if ts_id not in self._slots:
                 self._slots[ts_id] = self._phase_lane_slots(ts_id)
-            queues = self.env.traffic_signals[ts_id].get_lanes_queue()
+            queues = self._queues_from(observation, ts_id)
             scores = [sum(queues[i] for i in slots)
                       for slots in self._slots[ts_id]]
             actions[ts_id] = int(max(range(len(scores)), key=scores.__getitem__))
         return actions
+
+    def _queues_from(self, observation, ts_id: str) -> list:
+        """
+        Pull the per-lane queue block out of a sumo-rl observation.
+
+        Layout: [phase one-hot][min-green flag][densities][queues], so the
+        queues are the final `n_lanes` values.
+        """
+        signal = self.env.traffic_signals[ts_id]
+        n_lanes = len(signal.lanes)
+        return list(observation[-n_lanes:])
 
 
 class IndependentPolicyController(CorridorController):

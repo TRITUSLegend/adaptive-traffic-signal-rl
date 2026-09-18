@@ -49,7 +49,7 @@ from the re-run data, which is the same statement made from the other end.
 |---|---|---|---|
 | D1 | Route generation not reproducible | Critical | **Fixed & verified** |
 | D2 | No version control | Critical | **Fixed** |
-| D3 | No automated tests | Serious | **Fixed** — 429 tests |
+| D3 | No automated tests | Serious | **Fixed** — 466 tests |
 | D4 | Report's provenance claim was false | Serious | **Fixed & enforced** |
 | D5 | `MIN_GREEN` defined twice | Moderate | **Fixed** |
 | D6 | Honesty metric failed silently to zero | Moderate | **Fixed** |
@@ -117,7 +117,7 @@ pushed to, per instruction.
 
 ### D3 — No automated tests
 
-**429 tests** in `tests/`, all passing in 1.3 s:
+**466 tests** in `tests/`, all passing in 1.3 s:
 
 | Module | Tests | Covers |
 |---|---|---|
@@ -127,6 +127,7 @@ pushed to, per instruction.
 | `test_perturbations.py` | 27 | Detector failure: pairing, sensing-only corruption |
 | `test_corridor_network.py` | 25 | Corridor geometry, turn/lane agreement, phases |
 | `test_corridor_isolation.py` | 25 | The corridor has not modified the original study |
+| `test_corridor_report_matches_data.py` | 21 | Corridor report-to-CSV provenance |
 | `test_transfer.py` | 17 | Observation projection and action clamping for transfer |
 | `test_significance.py` | 27 | The hand-rolled t and Wilcoxon distributions |
 | `test_followups.py` | 29 | The addendum generators: branch choice and table shape |
@@ -138,6 +139,8 @@ pushed to, per instruction.
 | `test_report_matches_data.py` | 16 | D4, report-to-CSV provenance |
 | `test_tripinfo.py` | 9 | Trip parsing, survivorship bias |
 | `test_documented_counts.py` | 8 | This table and these totals, against the suite |
+| `test_corridor_metrics.py` | 8 | Result fields agree with what measures them (D6-shaped) |
+| `test_detector_dependence.py` | 8 | Detector-reading controllers actually read detectors |
 
 The count grew from the 171 the audit remediation ended with as the follow-up
 work landed; the F-series defects in section 5 are what the newest modules were
@@ -250,7 +253,7 @@ is explained by a comment. Not worth the risk during a remediation pass.
 | Both models load and predict | **pass** — DQN→2, PPO→1 on a fixed probe; both 21→64→64→4 |
 | Full 150-episode sweep re-run | **pass** — 26.4 min |
 | Sweep reconciled against original | **pass** — 150/150 bit-for-bit identical |
-| Test suite | **429 passed** in 1.3 s |
+| Test suite | **466 passed** in 1.3 s |
 | Tests proven to catch breaks | **pass** — 5/5 mutations caught |
 | Route determinism, 3 fresh processes | **pass** — identical sha256 |
 | Overwrite guard refuses and leaves files intact | **pass** — exit 1, `git status` clean |
@@ -490,7 +493,7 @@ from its recorded light strings instead.
 ## 6. How to re-verify
 
 ```bash
-python -m pytest                     # 429 tests, ~1 s
+python -m pytest                     # 466 tests, ~1 s
 python -m ruff check .               # lint, rule set pinned in pyproject.toml
 python smoke_test.py                 # toolchain, 5 checks
 python eval/evaluate.py              # ~26 min; must reproduce the CSVs exactly

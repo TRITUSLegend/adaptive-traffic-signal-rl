@@ -85,8 +85,9 @@ NEEDS_ACTUATED_NET = {"actuated"}
 
 METRICS = [
     "mean_waiting_time_s",
-    "mean_travel_time_s",
     "mean_time_loss_s",
+    "mean_trip_duration_s",
+    "mean_speed_mps",
     "mean_queue_length_veh",
     "max_queue_length_veh",
     "throughput_veh",
