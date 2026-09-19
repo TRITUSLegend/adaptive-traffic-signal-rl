@@ -544,7 +544,7 @@ direction this study's own clean-conditions numbers would have hidden.
 
 ---
 
-## 6.4 MA2C: what the headline number is, and what it is not
+### 6.4 MA2C: what the headline number is, and what it is not
 
 MA2C is bottom of every table above, by a wide margin. That ranking is real and
 is not softened here — but reporting it without the following would be
@@ -714,6 +714,7 @@ python corridor/train_independent.py --algo ppo      # ~3-5 h
 python corridor/train_ma2c.py                        # ~3-5 h
 python corridor/evaluate_corridor.py                 # the clean sweep
 python corridor/robustness.py --all                  # failure + transfer
+python corridor/evaluate_corridor.py --controllers ma2c-sampled --append
 python corridor/make_corridor_tables.py --write      # this report's tables
 python corridor/make_corridor_plots.py               # its figures
 python -m pytest                                     # the whole suite

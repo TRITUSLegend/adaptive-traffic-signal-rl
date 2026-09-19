@@ -3,7 +3,7 @@
 **Read this file first.** It is the single orientation document for anyone —
 human or AI — picking this project up cold. It states what the project is, what
 is finished, what is not, and the rules that must not be broken. Everything here
-was verified against the working tree on **2026-09-19**, not copied from older
+was verified against the working tree on **2026-09-20**, not copied from older
 notes.
 
 Where this file disagrees with `docs/PROGRESS.md` or `docs/REMEDIATION_LOG.md`,
@@ -86,7 +86,7 @@ see §12. It does not modify anything described below.
 
 ### Verified-green as of 2026-09-19
 
-- `python -m pytest` → **276 passed**
+- `python -m pytest` → **513 passed** (276 of them the single-intersection study)
 - `python -m ruff check .` → **All checks passed**
 - `git status` → **clean**
 - `results/logs/evaluation_raw.csv` → **390 rows** = 13 controllers × 6 scenarios × 5 seeds, no gaps
@@ -126,7 +126,7 @@ legible:
 | stable-baselines3 | 2.7.1 |
 | others | gymnasium 1.2.3, numpy 2.5.2, pandas 3.0.5, matplotlib 3.11.1 |
 | Platform | Windows 11; git-bash and PowerShell both available |
-| Git | branch `master`, 11 commits, HEAD `e44aa24`, working tree clean |
+| Git | branch `master`, 38 commits, working tree clean |
 
 **`sumo_setup.py` must be imported before any `traci` / `sumolib` / `sumo_rl`
 import.** `sumo_rl` raises `ImportError` at import time if `SUMO_HOME` is unset.
@@ -145,7 +145,7 @@ Every entry-point script already does this; preserve it in anything new.
 | 7 | `eval/evaluate.py` | All controllers x all scenarios x 5 seeds | ~26 min |
 | 8 | `eval/make_plots.py` | Figures | s |
 | 9 | `eval/make_tables.py --write` | Splices tables into `REPORT.md` | s |
-| 10 | `python -m pytest` | 276 tests | ~3 s |
+| 10 | `python -m pytest` | 513 tests | ~6 s |
 
 Steps 5–7 are the long ones. Every script supports `--help`.
 
@@ -457,35 +457,65 @@ breaks were applied to an isolated copy of the repository, and the suite caught
 
 ---
 
-## 12. The multi-intersection corridor extension (NEW — planning stage)
+## 12. The multi-intersection corridor extension — COMPLETE
 
-Stretch goal 9, previously declined, was **reopened on 2026-09-19** to satisfy an
-assignment brief the single-intersection work does not meet: it requires a
-corridor deliverable, an **actuated** baseline, multi-agent RL including
-**MA2C**, real-data-seeded demand, and a robustness study (detector failure,
-demand shift, topology transfer).
+Stretch goal 9 was reopened on 2026-09-19 and finished on 2026-09-20. It is new
+work in `corridor/`, `results/corridor/` and `CORRIDOR_REPORT.md`; it modifies
+nothing in the single-intersection study, and `tests/test_corridor_isolation.py`
+hashes those sources plus `REPORT.md` to keep it that way.
 
-**Current state: a plan exists, awaiting approval. No corridor code is written
-and nothing is trained.** See **`CORRIDOR_PLAN.md`** for the full proposal.
+**Read `CORRIDOR_REPORT.md` for the findings.** `CORRIDOR_PLAN.md` holds the
+approved plan and the reasoning behind each design choice.
 
-Headline proposals:
+### What was built
 
-- **3-intersection synthetic arterial**, 400 m spacing, tiled from the existing
-  validated geometry by a generator script.
-- **`cologne3`** (a real 3-signal Cologne corridor with 4,494 real vehicle
-  departures, bundled inside `sumo-rl`) serves as **both** the real-data
-  component **and** the zero-shot topology-transfer target.
-- **PeMS is rejected with reasons** — it is freeway loop data with no
-  intersections or turning movements, and does not fit an urban arterial.
-- **Independent learners** for DQN/PPO; **MA2C written from scratch** (~500
-  lines, no new dependency), LSTM omitted in v1 and flagged.
-- **Actuated baseline = SUMO-native `tlLogic type="actuated"`**. The existing
-  greedy-queue heuristic is *not* actuated and will not be relabelled as such.
-- Robustness is measured **against fixed-time's degradation under the identical
-  perturbation**, never as an absolute.
+A 3-junction arterial tiled from the existing geometry (its compiled phase
+strings come out identical to the validated single-intersection plan), demand
+calibrated from `cologne3`'s real busiest hour, six controllers, and three
+robustness studies. 420 evaluation episodes across the clean sweep, the
+detector-failure sweep and topology transfer.
 
-**Rules for this phase, additional to §5:** the corridor is new work in new
-directories (`corridor/`, `results/corridor/`, `CORRIDOR_REPORT.md`). It does
-not modify the single-intersection code, data, models or `REPORT.md` — not even
-a pointer line, because `test_report_matches_data.py` and the byte-identical
-`make_tables.py` guarantee both depend on that file not moving.
+| Controller | Delay vs fixed-time |
+|---|---|
+| Actuated (SUMO gap-based) | −54.3% |
+| Greedy queue heuristic | −57.5% |
+| Independent DQN | −57.8% |
+| **Independent PPO** | **−63.5%** |
+| MA2C (deterministic) | +124% — see report §6.4 |
+
+### The four findings that matter
+
+1. **Learning's margin over a stock actuated controller is about six
+   percentage points.** The heuristic is within half a point of Independent DQN.
+2. **Detector failure inverts the ranking.** Every adaptive controller crosses
+   above fixed-time between 12% and 25% of detectors failing stuck-at-zero.
+3. **Transfer works across scale and fails on real geometry.** The learners
+   drive 2- and 5-junction corridors unadapted, and gridlock on `cologne3`.
+4. **Every adaptive controller starves a movement** past the project's 200 s
+   bound (greedy 320 s, IDQN 325 s, IPPO 450 s), invisible in any mean.
+
+### Six defects found and fixed during this work, all silent
+
+Recorded because each would have produced a plausible published number:
+
+- **Inverted corridor geometry** — the protected left-turn lane carried right
+  turns; caught by a SUMO detector warning, not by any number looking wrong.
+- **The queue heuristic bypassed its detectors**, reading the live simulation
+  instead of the observation, so the failure sweep measured nothing for it.
+- **A silent-zero metric** — a declared field `parse_tripinfo` never produces.
+- **MA2C saw its neighbours' decisions within the same step**, making it
+  order-dependent and evaluating the gradient at a state that never produced
+  the action.
+- **Episode end treated as terminal rather than a time limit** in both learners.
+- **MA2C's critic could never arrive** — actor and critic shared one gradient
+  clip, and returns near −100 needed 150,000 updates where a run has 6,120. Two
+  earlier diagnoses found real defects that were not the cause; this one was
+  found by measuring the critic rather than hypothesising.
+
+### Still open
+
+- `+safe` was never swept on the corridor, so the starvation above is measured
+  but not remedied.
+- The detector study cannot reach the actuated baseline (it corrupts the
+  controller's observation; SUMO drives actuated from its own loops).
+- One training seed, no significance testing.
