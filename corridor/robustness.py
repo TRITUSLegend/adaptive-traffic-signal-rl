@@ -76,35 +76,78 @@ FAILURE_MODES = ["zero", "freeze"]
 CLEAN_TARGETS = [2, 5]
 
 
+def episode_key(row: dict) -> tuple:
+    """What identifies one measured episode, for resuming a partial sweep."""
+    return (str(row["controller"]), str(row["scenario"]), str(row["seed"]),
+            str(row.get("network", "")), "%.4f" % float(row["failure_rate"]),
+            str(row["failure_mode"]))
+
+
+def load_done(path: Path) -> dict:
+    """Episodes already measured, keyed so a re-run can skip them."""
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as fh:
+        return {episode_key(r): r for r in csv.DictReader(fh)}
+
+
 def detector_sweep(controllers: list, rates: list, modes: list, seeds: list,
-                   n_junctions: int) -> list:
-    rows = []
+                   n_junctions: int, resume: bool = True) -> list:
+    """
+    Run the failure sweep, saving after every episode and skipping what is done.
+
+    WHY IT SAVES AS IT GOES
+    -----------------------
+    The first version accumulated rows in memory and wrote them once at the
+    end. It reached 140 of 210 episodes - eighty minutes of simulation - before
+    the machine ran out of memory, SUMO failed to launch, and every one of
+    those episodes was lost because none had been written.
+
+    An episode is fully determined by its controller, scenario, seed, failure
+    rate and mode, so a completed one never needs repeating. Writing after each
+    and skipping what is already present makes the sweep restartable, which on
+    a machine whose free memory depends on what else is open is not a luxury.
+    """
     started = time.time()
+    existing = load_done(paths.ROBUSTNESS_RAW) if resume else {}
+    rows = list(existing.values())
+
     # The clean control is identical across modes, so it is run once per
     # controller rather than once per mode.
     jobs = [(c, r, m) for c in controllers for m in modes for r in rates
             if not (r == 0.0 and m != modes[0])]
-    print("Detector-failure sweep: %d episodes" % (len(jobs) * len(seeds)))
+    total = len(jobs) * len(seeds)
+    if existing:
+        print("Detector-failure sweep: %d episodes, %d already done"
+              % (total, len(existing)))
+    else:
+        print("Detector-failure sweep: %d episodes" % total)
 
     done = 0
     for controller, rate, mode in jobs:
-        factory = build_factory(controller)
+        factory = None
         actuated = controller in NEEDS_ACTUATED_NET
         for seed in seeds:
+            done += 1
+            label = "none" if rate <= 0.0 else mode
+            key = (controller, FAILURE_SCENARIO, str(seed),
+                   paths.corridor_name(n_junctions), "%.4f" % rate, label)
+            if key in existing:
+                continue
+            # Built lazily so a fully-skipped block never loads a policy.
+            if factory is None:
+                factory = build_factory(controller)
             perturbation = make_perturbation(rate, mode, FAILURE_SCENARIO, seed)
             result = run_corridor_episode(
                 factory, controller, FAILURE_SCENARIO, seed,
                 n_junctions=n_junctions, actuated=actuated,
                 keep_trace=False, quiet=True, perturbation=perturbation)
-            row = result.summary()
-            # A clean row belongs to every mode when the table is read, so it
-            # is labelled 'none' and matched on rate rather than on mode.
-            rows.append(row)
-            done += 1
+            rows.append(result.summary())
+            write_rows(paths.ROBUSTNESS_RAW, rows)   # after every episode
             if done % 10 == 0:
                 print("  %d/%d episodes, %.1f min elapsed"
-                      % (done, len(jobs) * len(seeds),
-                         (time.time() - started) / 60.0), flush=True)
+                      % (done, total, (time.time() - started) / 60.0),
+                      flush=True)
 
     write_rows(paths.ROBUSTNESS_RAW, rows)
     print("Detector sweep finished in %.1f minutes."
@@ -128,9 +171,16 @@ def transfer_factory(controller: str, target: str):
     return T.adapted_policy_factory(load_policy(controller), controller)
 
 
-def clean_transfer(controllers: list, seeds: list) -> list:
-    """Same junction structure, different corridor length. Nothing is adapted."""
-    rows = []
+def clean_transfer(controllers: list, seeds: list, rows: list = None,
+                   existing: dict = None) -> list:
+    """
+    Same junction structure, different corridor length. Nothing is adapted.
+
+    Saves after every episode and skips what is already recorded, for the same
+    reason the detector sweep does - see `detector_sweep`.
+    """
+    rows = [] if rows is None else rows
+    existing = existing or {}
     for n in CLEAN_TARGETS:
         net = paths.net_file(n)
         if not net.exists():
@@ -141,16 +191,22 @@ def clean_transfer(controllers: list, seeds: list) -> list:
             factory = transfer_factory(controller, "corridor%d" % n)
             actuated = controller in NEEDS_ACTUATED_NET
             for seed in seeds:
+                key = (controller, "calibrated", str(seed),
+                       paths.corridor_name(n), "0.0000", "none")
+                if key in existing:
+                    continue
                 result = run_corridor_episode(
                     factory, controller, "calibrated", seed,
                     n_junctions=n, actuated=actuated, keep_trace=False,
                     quiet=True, network_label=paths.corridor_name(n))
                 rows.append(result.summary())
+                write_rows(paths.TRANSFER_RAW, rows)
             print("  corridor%d  %-13s done" % (n, controller), flush=True)
     return rows
 
 
-def cologne_transfer(controllers: list, seeds: list) -> list:
+def cologne_transfer(controllers: list, seeds: list, rows: list = None,
+                     existing: dict = None) -> list:
     """
     Real-topology transfer onto a corridor we did not draw.
 
@@ -160,7 +216,8 @@ def cologne_transfer(controllers: list, seeds: list) -> list:
     with adaptation cost, and is reported as such - the clean transfers above
     exist to give an unconfounded reading alongside it.
     """
-    rows = []
+    rows = [] if rows is None else rows
+    existing = existing or {}
     if not T.COLOGNE3_NET.exists():
         print("  skipping cologne3 - not found at %s" % T.COLOGNE3_NET)
         return rows
@@ -170,6 +227,10 @@ def cologne_transfer(controllers: list, seeds: list) -> list:
         factory = transfer_factory(controller, "cologne3")
         net = actuated_net if controller in NEEDS_ACTUATED_NET else T.COLOGNE3_NET
         for seed in seeds:
+            key = (controller, "cologne3", str(seed), "cologne3", "0.0000",
+                   "none")
+            if key in existing:
+                continue
             try:
                 result = run_corridor_episode(
                     factory, controller, "cologne3", seed,
@@ -183,6 +244,7 @@ def cologne_transfer(controllers: list, seeds: list) -> list:
                       % (controller, seed, exc), flush=True)
                 continue
             rows.append(result.summary())
+            write_rows(paths.TRANSFER_RAW, rows)
         print("  cologne3   %-13s done" % controller, flush=True)
     return rows
 
@@ -219,8 +281,12 @@ def main() -> None:
     if args.transfer or args.all:
         started = time.time()
         print("Topology transfer:")
-        rows = clean_transfer(args.controllers, args.seeds)
-        rows += cologne_transfer(args.controllers, args.seeds)
+        existing = load_done(paths.TRANSFER_RAW)
+        if existing:
+            print("  %d transfer episodes already done" % len(existing))
+        rows = list(existing.values())
+        clean_transfer(args.controllers, args.seeds, rows, existing)
+        cologne_transfer(args.controllers, args.seeds, rows, existing)
         write_rows(paths.TRANSFER_RAW, rows)
         print("Transfer finished in %.1f minutes."
               % ((time.time() - started) / 60.0))

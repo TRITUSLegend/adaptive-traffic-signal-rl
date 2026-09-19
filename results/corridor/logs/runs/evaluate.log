@@ -1,1 +1,28 @@
 Evaluating 6 controllers x 4 scenarios x 5 seeds
+  5/120 episodes, 3.9 min elapsed
+  10/120 episodes, 7.5 min elapsed
+  15/120 episodes, 13.3 min elapsed
+  20/120 episodes, 17.4 min elapsed
+  25/120 episodes, 20.3 min elapsed
+  30/120 episodes, 23.0 min elapsed
+  35/120 episodes, 26.3 min elapsed
+  40/120 episodes, 29.7 min elapsed
+  45/120 episodes, 32.7 min elapsed
+  50/120 episodes, 35.4 min elapsed
+  55/120 episodes, 39.0 min elapsed
+  60/120 episodes, 42.7 min elapsed
+  65/120 episodes, 46.2 min elapsed
+  70/120 episodes, 48.8 min elapsed
+  75/120 episodes, 52.1 min elapsed
+  80/120 episodes, 55.3 min elapsed
+  85/120 episodes, 56.7 min elapsed
+  90/120 episodes, 57.9 min elapsed
+  95/120 episodes, 59.5 min elapsed
+  100/120 episodes, 61.1 min elapsed
+  105/120 episodes, 63.7 min elapsed
+  110/120 episodes, 66.3 min elapsed
+  115/120 episodes, 69.5 min elapsed
+  120/120 episodes, 72.0 min elapsed
+Evaluated 120 episodes in 72.0 minutes.
+  raw     -> results/corridor/logs/corridor_evaluation_raw.csv
+  summary -> results/corridor/logs/corridor_evaluation_summary.csv

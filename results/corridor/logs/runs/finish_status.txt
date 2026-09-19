@@ -1,0 +1,7 @@
+2026-09-19 18:16:22  STEP 1/4  train ma2c (170 episodes)
+2026-09-19 20:05:16  done 1/4
+2026-09-19 20:05:16  STEP 2/4  evaluate all six controllers, four scenarios, five seeds
+2026-09-19 21:17:21  done 2/4
+2026-09-19 21:17:21  STEP 3/4  detector-failure sweep
+2026-09-19 22:39:34  FAILED 3/4 (exit 1) - stopping; later steps depend on this one
+2026-09-19 22:39:34  see results/corridor/logs/runs/robustness_detector.log

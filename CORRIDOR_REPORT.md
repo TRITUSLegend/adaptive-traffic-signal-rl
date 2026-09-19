@@ -219,6 +219,11 @@ suppressed demand is visible rather than silently improving a number.
 ## 4. Did the learners converge?
 
 <!-- BEGIN GENERATED: convergence -->
+| Run | Episodes | Mean queue, first 10 (veh) | Mean queue, last 10 (veh) | Change |
+|---|---|---|---|---|
+| Independent DQN | 170 | 110.6 | 16.1 | -85% |
+| Independent PPO | 170 | 82.3 | 15.3 | -81% |
+| MA2C | 170 | 118.8 | 26.1 | -78% |
 <!-- END GENERATED: convergence -->
 
 ![Corridor training curves](results/corridor/plots/corridor_training_curves.png)
@@ -230,6 +235,32 @@ suppressed demand is visible rather than silently improving a number.
 ### 5.1 Every controller, every scenario
 
 <!-- BEGIN GENERATED: headline -->
+| Controller | Scenario | Mean wait (s) | Queue (veh) | Throughput (veh/h) | Not inserted |
+|---|---|---|---|---|---|
+| Fixed-time | `calibrated` | 84.2 ± 7.6 | 51.4 | 2072 | 1 |
+|   Actuated (gap-based) | `calibrated` | 34.3 ± 2.2 | 21.0 | 2114 | 1 |
+|   Greedy queue heuristic | `calibrated` | 29.1 ± 1.7 | 17.7 | 2114 | 1 |
+|   Independent DQN | `calibrated` | 25.1 ± 0.5 | 15.2 | 2120 | 1 |
+|   Independent PPO | `calibrated` | 24.7 ± 0.6 | 15.1 | 2120 | 1 |
+|   MA2C | `calibrated` | 232.4 ± 10.3 | 140.3 | 1860 | 22 |
+| Fixed-time | `balanced` | 70.1 ± 7.3 | 55.4 | 2700 | 0 |
+|   Actuated (gap-based) | `balanced` | 36.1 ± 1.0 | 28.6 | 2747 | 0 |
+|   Greedy queue heuristic | `balanced` | 31.7 ± 1.5 | 25.0 | 2746 | 0 |
+|   Independent DQN | `balanced` | 29.2 ± 1.3 | 23.1 | 2749 | 0 |
+|   Independent PPO | `balanced` | 28.2 ± 1.0 | 22.3 | 2754 | 0 |
+|   MA2C | `balanced` | 179.7 ± 8.5 | 137.4 | 2476 | 83 |
+| Fixed-time | `peak` | 144.8 ± 8.8 | 109.0 | 2460 | 166 |
+|   Actuated (gap-based) | `peak` | 41.7 ± 1.9 | 33.4 | 2764 | 0 |
+|   Greedy queue heuristic | `peak` | 41.9 ± 1.3 | 33.5 | 2754 | 0 |
+|   Independent DQN | `peak` | 32.7 ± 1.0 | 26.3 | 2773 | 0 |
+|   Independent PPO | `peak` | 31.9 ± 0.9 | 25.6 | 2774 | 0 |
+|   MA2C | `peak` | 233.2 ± 9.0 | 182.2 | 2446 | 62 |
+| Fixed-time | `reverse` | 64.5 ± 13.0 | 61.6 | 3285 | 0 |
+|   Actuated (gap-based) | `reverse` | 39.6 ± 1.5 | 37.8 | 3324 | 0 |
+|   Greedy queue heuristic | `reverse` | 39.6 ± 4.8 | 37.8 | 3313 | 0 |
+|   Independent DQN | `reverse` | 48.3 ± 19.4 | 46.3 | 3264 | 0 |
+|   Independent PPO | `reverse` | 35.1 ± 3.7 | 33.6 | 3318 | 0 |
+|   MA2C | `reverse` | 131.2 ± 7.7 | 119.6 | 3047 | 143 |
 <!-- END GENERATED: headline -->
 
 ![Corridor comparison](results/corridor/plots/corridor_comparison.png)
@@ -239,6 +270,13 @@ suppressed demand is visible rather than silently improving a number.
 The brief's headline metric. Negative is an improvement.
 
 <!-- BEGIN GENERATED: reduction -->
+| Controller | `calibrated` | `balanced` | `peak` | `reverse` | Mean |
+|---|---|---|---|---|---|
+| Actuated (gap-based) | -59.2% | -48.4% | -71.2% | -38.5% | **-54.3%** |
+| Greedy queue heuristic | -65.4% | -54.7% | -71.1% | -38.6% | **-57.5%** |
+| Independent DQN | -70.2% | -58.4% | -77.4% | -25.1% | **-57.8%** |
+| Independent PPO | -70.6% | -59.8% | -78.0% | -45.5% | **-63.5%** |
+| MA2C | +175.9% | +156.3% | +61.0% | +103.5% | **+124.2%** |
 <!-- END GENERATED: reduction -->
 
 `reverse` is the demand-shift test: the side streets carry more than the
@@ -249,6 +287,14 @@ single-intersection study.
 ### 5.3 Throughput, so the reductions above can be read honestly
 
 <!-- BEGIN GENERATED: throughput -->
+| Controller | `calibrated` | `balanced` | `peak` | `reverse` |
+|---|---|---|---|---|
+| Fixed-time | 2072 | 2700 | 2460 | 3285 |
+| Actuated (gap-based) | 2114 | 2747 | 2764 | 3324 |
+| Greedy queue heuristic | 2114 | 2746 | 2754 | 3313 |
+| Independent DQN | 2120 | 2749 | 2773 | 3264 |
+| Independent PPO | 2120 | 2754 | 2774 | 3318 |
+| MA2C | 1860 | 2476 | 2446 | 3047 |
 <!-- END GENERATED: throughput -->
 
 ---

@@ -1,0 +1,169 @@
+Detector-failure sweep: 210 episodes
+  10/210 episodes, 3.2 min elapsed
+  20/210 episodes, 8.2 min elapsed
+  30/210 episodes, 14.6 min elapsed
+  40/210 episodes, 20.2 min elapsed
+  50/210 episodes, 25.0 min elapsed
+  60/210 episodes, 30.3 min elapsed
+  70/210 episodes, 34.9 min elapsed
+  80/210 episodes, 38.5 min elapsed
+  90/210 episodes, 46.2 min elapsed
+  100/210 episodes, 50.9 min elapsed
+  110/210 episodes, 56.5 min elapsed
+  120/210 episodes, 63.9 min elapsed
+  130/210 episodes, 74.2 min elapsed
+  140/210 episodes, 79.6 min elapsed
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64831 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64833 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64836 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64840 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64842 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 54780 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 55744 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 55747 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 55750 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 55753 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64030 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64033 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64035 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 64039 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 52742 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 52746 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 52750 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 52752 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 52754 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 52756 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61664 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61666 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61668 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61670 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51550 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51552 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51556 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51559 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51561 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51563 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51565 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51567 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51827 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 51832 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 62538 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 62540 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57767 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57769 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57771 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57773 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57775 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57778 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57780 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 57782 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 58476 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 58478 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61769 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61771 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61773 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 61775 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53010 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53012 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53015 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53019 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53022 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53026 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53029 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53031 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53034 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53036 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py:156: UserWarning: Could not connect to TraCI server using port 53038 (TraCI server already finished). Retrying with different port.
+  warnings.warn(("Could not connect to TraCI server using port %s (%s)." +
+Traceback (most recent call last):
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\corridor\robustness.py", line 231, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\corridor\robustness.py", line 215, in main
+    detector_sweep(args.controllers, FAILURE_RATES, FAILURE_MODES,
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   args.seeds, args.junctions)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\corridor\robustness.py", line 95, in detector_sweep
+    result = run_corridor_episode(
+        factory, controller, FAILURE_SCENARIO, seed,
+        n_junctions=n_junctions, actuated=actuated,
+        keep_trace=False, quiet=True, perturbation=perturbation)
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\corridor\env.py", line 240, in run_corridor_episode
+    env = make_corridor_env(
+        scenario, seed, fixed_ts=fixed_ts, n_junctions=n_junctions,
+        actuated=actuated, tripinfo=tripinfo,
+        net_override=net_override, route_override=route_override,
+        begin_time=begin_time)
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\corridor\env.py", line 171, in make_corridor_env
+    return SumoEnvironment(
+        net_file=str(net),
+    ...<18 lines>...
+        add_per_agent_info=True,
+    )
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo_rl\environment\env.py", line 149, in __init__
+    traci.start([sumolib.checkBinary("sumo"), "-n", self._net], label="init_connection" + self.label)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Aditya Raj Kar\Downloads\Design of Smart Cities\.venv\Lib\site-packages\sumo\tools\traci\main.py", line 159, in start
+    raise FatalTraCIError("Could not connect.")
+traci.exceptions.FatalTraCIError: Could not connect.
