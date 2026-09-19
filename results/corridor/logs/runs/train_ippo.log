@@ -1,0 +1,2 @@
+Training ippo for 170 episodes (367200 timesteps across 3 junctions)
+  ippo episode    1 | return   -10865.2 | mean queue  120.7 veh |   1.2 min elapsed

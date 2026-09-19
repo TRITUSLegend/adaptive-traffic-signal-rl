@@ -53,11 +53,12 @@ REGION_SOURCE = {
     "headline": lambda: paths.EVALUATION_RAW,
     "reduction": lambda: paths.EVALUATION_RAW,
     "throughput": lambda: paths.EVALUATION_RAW,
-    # The trained model, not the curve. A curve file appears within the first
-    # ten episodes and is rewritten as training proceeds, so gating on it would
-    # demand a published convergence table while the run it describes is still
-    # going. A model exists only once training has finished.
-    "convergence": lambda: paths.model_file("idqn"),
+    # The LAST model the training chain produces, not the first and not a
+    # curve. A curve appears within ten episodes and is rewritten as training
+    # proceeds; the first model appears when one learner of three is done. The
+    # convergence table describes all three, so it is only owed once the whole
+    # chain has finished - which is exactly when its last model exists.
+    "convergence": lambda: paths.model_file("ma2c"),
     "detector": lambda: paths.ROBUSTNESS_RAW,
     "margin": lambda: paths.ROBUSTNESS_RAW,
     "transfer": lambda: paths.TRANSFER_RAW,

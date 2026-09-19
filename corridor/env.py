@@ -276,14 +276,15 @@ def run_corridor_episode(controller_factory, controller_name: str, scenario: str
             # between, so the number means "how often right of way was handed
             # over" - the same definition the single-intersection study uses,
             # summed across the corridor.
-            for ts_id, state in signal_states(env).items():
+            states = signal_states(env)
+            for ts_id, state in states.items():
                 if state and "y" not in state:
                     if ts_id in last_green and state != last_green[ts_id]:
                         result.phase_switches += 1
                     last_green[ts_id] = state
 
             if keep_trace:
-                result.trace.append({
+                row = {
                     "sim_time": float(info.get("step", env.sim_step)),
                     "queue_veh": stopped,
                     "system_mean_waiting_time_s":
@@ -291,7 +292,18 @@ def run_corridor_episode(controller_factory, controller_name: str, scenario: str
                     "system_mean_speed_mps":
                         float(info.get("system_mean_speed", 0.0)),
                     "reward": float(sum(rewards.values())),
-                })
+                }
+                # The light string each junction is showing, one column per
+                # junction. Recorded because it is the only way to answer the
+                # question the single-intersection study's Addendum E had to
+                # answer from its own traces: whether a policy quietly starves
+                # a movement. An aggregate delay figure cannot show it - a
+                # starved approach carries few enough vehicles that its misery
+                # is diluted by the ones being served well - so the evidence
+                # has to be the signal's own behaviour, sampled every step.
+                for ts_id in sorted(states):
+                    row["signal_%s" % ts_id] = states[ts_id]
+                result.trace.append(row)
 
         # The insertion backlog must not fail silently to zero: zero is the
         # GOOD reading, the one used to argue no demand was hidden outside the

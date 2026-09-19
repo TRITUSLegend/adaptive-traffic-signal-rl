@@ -2,3 +2,23 @@ Training idqn for 170 episodes (367200 timesteps across 3 junctions)
   idqn episode    1 | return   -10858.1 | mean queue  120.6 veh |   1.2 min elapsed
   idqn episode   10 | return    -8438.8 | mean queue   93.8 veh |  11.2 min elapsed
   idqn episode   20 | return    -3493.5 | mean queue   38.8 veh |  20.8 min elapsed
+  idqn episode   30 | return    -2607.1 | mean queue   29.0 veh |  27.7 min elapsed
+  idqn episode   40 | return    -2219.1 | mean queue   24.7 veh |  33.7 min elapsed
+  idqn episode   50 | return    -1706.5 | mean queue   19.0 veh |  39.4 min elapsed
+  idqn episode   60 | return    -1400.4 | mean queue   15.6 veh |  44.7 min elapsed
+  idqn episode   70 | return    -1454.0 | mean queue   16.2 veh |  49.9 min elapsed
+  idqn episode   80 | return    -1467.5 | mean queue   16.3 veh |  55.4 min elapsed
+  idqn episode   90 | return    -1385.6 | mean queue   15.4 veh |  60.8 min elapsed
+  idqn episode  100 | return    -1465.4 | mean queue   16.3 veh |  66.3 min elapsed
+  idqn episode  110 | return    -1437.4 | mean queue   16.0 veh |  71.7 min elapsed
+  idqn episode  120 | return    -1478.8 | mean queue   16.4 veh |  77.2 min elapsed
+  idqn episode  130 | return    -1381.9 | mean queue   15.4 veh |  82.7 min elapsed
+  idqn episode  140 | return    -1434.6 | mean queue   15.9 veh |  88.2 min elapsed
+  idqn episode  150 | return    -1386.4 | mean queue   15.4 veh |  93.7 min elapsed
+  idqn episode  160 | return    -1404.2 | mean queue   15.6 veh |  99.2 min elapsed
+  idqn episode  170 | return    -1399.6 | mean queue   15.6 veh | 104.6 min elapsed
+Finished in 104.6 minutes.
+  model -> corridor/models/idqn.zip
+  curve -> results/corridor/logs/training_curve_idqn.csv
+  mean queue over first 10 episodes: 110.6 vehicles
+  mean queue over last  10 episodes:  16.1 vehicles
