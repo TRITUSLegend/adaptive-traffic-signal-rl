@@ -20,6 +20,20 @@ records and reports, per controller and per junction:
 `phases_seen` is the blunt one. A junction that only ever shows three of its
 four phases has starved the fourth completely, and that is visible at a glance.
 
+VALIDATED AGAINST A CONTROLLER WHOSE ANSWER IS KNOWN
+---------------------------------------------------
+Unit tests pin the arithmetic on hand-built traces, but the useful check is
+that it reproduces a real signal whose behaviour can be derived on paper.
+Fixed-time runs a 104 s cycle of 32 s through, 12 s left, 4 s amber. A 12 s
+left-turn phase therefore waits 4+32+4+12+4+32+4 = 92 s between services, and
+the longest green is 32 s. Run against a real fixed-time trace this module
+reports 95 s and 35 s - both exactly one 5 s sampling interval above the
+analytic values, which is what a measure sampled every DELTA_TIME must do.
+
+It also puts fixed-time's worst wait at 95 s against the project's 200 s
+starvation bound, confirming from data what Addendum E argued structurally: a
+cycle that serves every phase in turn cannot starve one.
+
 WHAT THIS IS NOT
 ----------------
 It is a measurement of these runs, not a guarantee about all of them. The

@@ -1,2 +1,24 @@
 Training ippo for 170 episodes (367200 timesteps across 3 junctions)
   ippo episode    1 | return   -10865.2 | mean queue  120.7 veh |   1.2 min elapsed
+  ippo episode   10 | return    -3684.2 | mean queue   40.9 veh |  10.0 min elapsed
+  ippo episode   20 | return    -2427.2 | mean queue   27.0 veh |  16.1 min elapsed
+  ippo episode   30 | return    -1933.0 | mean queue   21.5 veh |  22.0 min elapsed
+  ippo episode   40 | return    -1717.2 | mean queue   19.1 veh |  27.6 min elapsed
+  ippo episode   50 | return    -1538.4 | mean queue   17.1 veh |  33.0 min elapsed
+  ippo episode   60 | return    -1538.2 | mean queue   17.1 veh |  38.4 min elapsed
+  ippo episode   70 | return    -1448.6 | mean queue   16.1 veh |  43.7 min elapsed
+  ippo episode   80 | return    -1454.2 | mean queue   16.2 veh |  49.1 min elapsed
+  ippo episode   90 | return    -1426.4 | mean queue   15.8 veh |  54.4 min elapsed
+  ippo episode  100 | return    -1427.4 | mean queue   15.9 veh |  59.7 min elapsed
+  ippo episode  110 | return    -1390.1 | mean queue   15.4 veh |  65.0 min elapsed
+  ippo episode  120 | return    -1403.5 | mean queue   15.6 veh |  70.3 min elapsed
+  ippo episode  130 | return    -1474.0 | mean queue   16.4 veh |  75.6 min elapsed
+  ippo episode  140 | return    -1423.4 | mean queue   15.8 veh |  80.9 min elapsed
+  ippo episode  150 | return    -1426.0 | mean queue   15.8 veh |  86.2 min elapsed
+  ippo episode  160 | return    -1456.5 | mean queue   16.2 veh |  91.5 min elapsed
+  ippo episode  170 | return    -1400.4 | mean queue   15.6 veh |  96.8 min elapsed
+Finished in 96.8 minutes.
+  model -> corridor/models/ippo.zip
+  curve -> results/corridor/logs/training_curve_ippo.csv
+  mean queue over first 10 episodes:  82.3 vehicles
+  mean queue over last  10 episodes:  15.3 vehicles

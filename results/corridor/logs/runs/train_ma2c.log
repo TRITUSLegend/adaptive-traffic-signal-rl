@@ -1,0 +1,4 @@
+Training ma2c for 170 episodes on a 3-junction corridor
+  ma2c episode    1 | return   -10626.2 | mean queue  118.1 veh |   0.8 min elapsed
+  ma2c episode   10 | return   -28153.6 | mean queue  312.8 veh |   6.9 min elapsed
+  ma2c episode   20 | return   -32031.1 | mean queue  355.9 veh |  16.6 min elapsed
