@@ -20,20 +20,36 @@ STATUS="$RUNS/finish_status.txt"
 mkdir -p "$RUNS"
 note() { echo "$(date '+%Y-%m-%d %H:%M:%S')  $*" >> "$STATUS"; }
 
-note "STEP 1/4  train ma2c (170 episodes)"
-$PY corridor/train_ma2c.py --episodes 170 > "$RUNS/train_ma2c.log" 2>&1
-note "done 1/4 (exit $?)"
+# Every later step depends on the model or the data an earlier one produces, so
+# a failure must stop the run rather than cascade down the list. When training
+# died of system memory at episode 11, this script went on to start the
+# evaluation - which needed the model training never saved - and would have
+# failed its way through all four steps, burning time and writing a misleading
+# trail. Now the first failure stops everything and says which step it was.
+step() {
+    local number="$1" label="$2" log="$3"
+    shift 3
+    note "STEP $number  $label"
+    if "$@" > "$RUNS/$log" 2>&1; then
+        note "done $number"
+    else
+        local code=$?
+        note "FAILED $number (exit $code) - stopping; later steps depend on this one"
+        note "see $RUNS/$log"
+        exit "$code"
+    fi
+}
 
-note "STEP 2/4  evaluate all six controllers, four scenarios, five seeds"
-$PY corridor/evaluate_corridor.py > "$RUNS/evaluate.log" 2>&1
-note "done 2/4 (exit $?)"
+step "1/4" "train ma2c (170 episodes)" "train_ma2c.log" \
+     $PY corridor/train_ma2c.py --episodes 170
 
-note "STEP 3/4  detector-failure sweep"
-$PY corridor/robustness.py --detector > "$RUNS/robustness_detector.log" 2>&1
-note "done 3/4 (exit $?)"
+step "2/4" "evaluate all six controllers, four scenarios, five seeds" "evaluate.log" \
+     $PY corridor/evaluate_corridor.py
 
-note "STEP 4/4  topology transfer"
-$PY corridor/robustness.py --transfer > "$RUNS/robustness_transfer.log" 2>&1
-note "done 4/4 (exit $?)"
+step "3/4" "detector-failure sweep" "robustness_detector.log" \
+     $PY corridor/robustness.py --detector
+
+step "4/4" "topology transfer" "robustness_transfer.log" \
+     $PY corridor/robustness.py --transfer
 
 note "PIPELINE COMPLETE"
