@@ -1,1 +1,14 @@
 2026-09-19 15:54:58  STEP 1/4  train ma2c (170 episodes)
+2026-09-19 16:16:20  done 1/4 (exit 1)
+2026-09-19 16:16:20  STEP 2/4  evaluate all six controllers, four scenarios, five seeds
+--- CORRECTION, written by hand 2026-09-19 16:20 ---
+Step 1 did not fail for any reason internal to MA2C. The machine ran out of
+memory (1.4 GB free of 15.6 GB, with an unrelated application holding 3.5 GB),
+SUMO could not be launched, and training died at episode 11 with
+FatalTraCIError: Could not connect. The MA2C fix verified just before this run
+is unaffected - a 20-episode probe descended 118.8 -> 41.8 mean queue.
+Step 2 then started and was doomed: the evaluation needs the MA2C model that
+step 1 never got to save. The pipeline was stopped by hand rather than left to
+fail its way down the list.
+Nothing is corrupt: idqn.zip and ippo.zip are intact, and no evaluation output
+was written.
