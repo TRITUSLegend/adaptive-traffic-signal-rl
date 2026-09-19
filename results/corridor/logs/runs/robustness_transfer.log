@@ -1,0 +1,61 @@
+Topology transfer:
+  corridor2  fixed-time    done
+  corridor2  actuated      done
+  corridor2  greedy-queue  done
+  corridor2  idqn          done
+  corridor2  ippo          done
+  corridor2  ma2c          done
+  corridor5  fixed-time    done
+  corridor5  actuated      done
+  corridor5  greedy-queue  done
+  corridor5  idqn          done
+  corridor5  ippo          done
+  corridor5  ma2c          done
+  cologne3   fixed-time    done
+Warning: At actuated tlLogic '360082', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360082', linkIndex 1,2,3 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic '360086', linkIndex 2,3,4,11,12,13 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', linkIndex 2,3,4,7,8,9,12,13,14,17,18,19 has no controlling detector.
+Warning: At actuated tlLogic '360082', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360082', linkIndex 1,2,3 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic '360086', linkIndex 2,3,4,11,12,13 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', linkIndex 2,3,4,7,8,9,12,13,14,17,18,19 has no controlling detector.
+Warning: At actuated tlLogic '360082', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360082', linkIndex 1,2,3 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic '360086', linkIndex 2,3,4,11,12,13 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', linkIndex 2,3,4,7,8,9,12,13,14,17,18,19 has no controlling detector.
+Warning: At actuated tlLogic '360082', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360082', linkIndex 1,2,3 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic '360086', linkIndex 2,3,4,11,12,13 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', linkIndex 2,3,4,7,8,9,12,13,14,17,18,19 has no controlling detector.
+Warning: At actuated tlLogic '360082', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360082', linkIndex 1,2,3 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic '360086', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic '360086', linkIndex 2,3,4,11,12,13 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 2 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', actuated phase 6 has no controlling detector.
+Warning: At actuated tlLogic 'GS_cluster_2415878664_254486231_359566_359576', linkIndex 2,3,4,7,8,9,12,13,14,17,18,19 has no controlling detector.
+  cologne3   actuated      done
+  cologne3   greedy-queue  done
+  cologne3   idqn          done
+  cologne3   ippo          done
+  cologne3   ma2c          done
+Transfer finished in 115.2 minutes.
+  -> results/corridor/logs/corridor_transfer_raw.csv

@@ -1,0 +1,8 @@
+Evaluating 1 controllers x 4 scenarios x 5 seeds
+  5/20 episodes, 1.6 min elapsed
+  10/20 episodes, 2.9 min elapsed
+  15/20 episodes, 4.7 min elapsed
+  20/20 episodes, 6.6 min elapsed
+Evaluated 20 episodes in 6.7 minutes.
+  raw     -> results/corridor/logs/corridor_evaluation_raw.csv
+  summary -> results/corridor/logs/corridor_evaluation_summary.csv

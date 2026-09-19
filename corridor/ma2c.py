@@ -457,22 +457,41 @@ class MA2CController:
     It needs the whole observation dict rather than one junction's vector,
     because an agent's input includes its neighbours' observations - which is
     why MA2C cannot reuse `IndependentPolicyController`.
+
+    DETERMINISTIC OR SAMPLED, AND WHY BOTH ARE REPORTED
+    ---------------------------------------------------
+    `deterministic=True` takes each agent's most probable phase, which is the
+    protocol every other controller in this study is held to. For MA2C that is
+    close to catastrophic, and the reason is measurable rather than mysterious:
+    it learns a SOFT policy - mean entropy 1.197 against 1.386 for uniform - and
+    its argmax covers only two of the four phases. Measured over 2000 states,
+    the mode was phase 0 on 46% and phase 2 on 54%, and phases 1 and 3 never.
+    Both left-turn movements are then starved outright: the traces show one
+    phase unserved for 1760 s and only 2 of 4 phases ever shown.
+
+    Sampling from the same policy spreads across all four (34/13/39/14) and is
+    what the agent actually did while training. So the two numbers answer
+    different questions - "how good is this policy's mode" and "how good is
+    this policy" - and CORRIDOR_REPORT.md reports both rather than choosing the
+    flattering one or quietly changing the protocol for a single controller.
     """
 
     uses_env_control = True
 
-    def __init__(self, model: MA2C, name: str = "ma2c", env=None):
+    def __init__(self, model: MA2C, name: str = "ma2c", env=None,
+                 deterministic: bool = True):
         self.model = model
         self.name = name
         self.env = env
+        self.deterministic = deterministic
 
     def on_episode_start(self, env) -> None:
         self.env = env
         self.model.reset_policies()
 
     def act(self, observations: dict) -> dict:
-        return self.model.act(observations, deterministic=True)
+        return self.model.act(observations, deterministic=self.deterministic)
 
 
-def ma2c_factory(model: MA2C, name: str = "ma2c"):
-    return lambda env: MA2CController(model, name, env)
+def ma2c_factory(model: MA2C, name: str = "ma2c", deterministic: bool = True):
+    return lambda env: MA2CController(model, name, env, deterministic)

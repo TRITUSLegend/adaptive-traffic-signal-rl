@@ -1,0 +1,5 @@
+2026-09-19 23:46:32  STEP 1/2  detector-failure sweep (resumable)
+2026-09-20 01:00:26  done 1/2
+2026-09-20 01:00:26  STEP 2/2  topology transfer (resumable)
+2026-09-20 02:55:41  done 2/2
+2026-09-20 02:55:41  SWEEPS COMPLETE

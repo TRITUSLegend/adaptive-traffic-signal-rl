@@ -243,9 +243,14 @@ def detector_failure() -> bool:
     ax.set_xlabel("Lane detectors failed (%, stuck-at-zero)", color=INK_SOFT,
                   fontsize=10)
     ax.set_ylabel("Mean waiting time (s)", color=INK_SOFT, fontsize=10)
+    # Both SUMO-driven baselines are flat for the same structural reason, and
+    # the chart has to say so: this wrapper corrupts the CONTROLLER's
+    # observation, and SUMO runs fixed-time and actuated from its own internal
+    # detectors, which it never touches. Naming only fixed-time would let a
+    # reader take actuated's flat line for robustness.
     ax.set_title("Degradation as detectors die\n"
-                 "Fixed-time reads no detectors, so its line is flat by "
-                 "construction - it is the reference, not a winner",
+                 "Fixed-time and actuated are driven by SUMO, so this fault "
+                 "cannot reach them - both lines are flat by construction",
                  color=INK, fontsize=11, loc="left", pad=12)
     ax.legend(frameon=False, fontsize=9, labelcolor=INK_SOFT, ncol=2)
     ax.set_xticks(xs)

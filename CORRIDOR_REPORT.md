@@ -326,7 +326,47 @@ the other:
 - **Freeze** — the lane holds its last good reading. Milder, and closer to a
   communications dropout than to a dead loop.
 
+> **Which controllers this fault can reach, corrected by measurement.** The plan
+> for this study predicted that fixed-time would be immune and that *actuated
+> would degrade*, since gap-out depends on detectors. The data says otherwise:
+> actuated reads **34.3 s at every failure rate**, exactly as flat as
+> fixed-time.
+>
+> The reason is a limit of the perturbation, not a property of the controller.
+> This wrapper corrupts **the controller's observation**, and SUMO drives
+> actuated from **its own internal induction loops** — 19 of them, which
+> `corridor/transfer.py` counts — which the wrapper never touches. So actuated
+> is a null here *by construction*, in the same way fixed-time is, and its flat
+> line is arithmetic rather than evidence of robustness.
+>
+> Reaching it would mean corrupting SUMO's own detectors, a different mechanism
+> that is not built here. Until someone does, **this study says nothing about
+> how gap-based actuated control behaves when its loops fail** — which is a
+> shame, because that is the one baseline a practitioner would most want the
+> answer for.
+
 <!-- BEGIN GENERATED: detector -->
+**Failure mode: stuck-at-zero**
+
+| Controller | 0% dead | 12% dead | 25% dead | 50% dead | Change at 50% |
+|---|---|---|---|---|---|
+| Fixed-time | 84.2 | 84.2 | 84.2 | 84.2 | **+0%** |
+| Actuated (gap-based) | 34.3 | 34.3 | 34.3 | 34.3 | **+0%** |
+| Greedy queue heuristic | 29.1 | 33.2 | 174.1 | 348.8 | **+1098%** |
+| Independent DQN | 25.1 | 33.1 | 184.3 | 560.7 | **+2136%** |
+| Independent PPO | 24.7 | 32.3 | 222.5 | 332.0 | **+1242%** |
+| MA2C | 232.4 | 251.8 | 269.8 | 307.3 | **+32%** |
+
+**Failure mode: freeze (last value held)**
+
+| Controller | 0% dead | 12% dead | 25% dead | 50% dead | Change at 50% |
+|---|---|---|---|---|---|
+| Fixed-time | 84.2 | 84.2 | 84.2 | 84.2 | **+0%** |
+| Actuated (gap-based) | 34.3 | 34.3 | 34.3 | 34.3 | **+0%** |
+| Greedy queue heuristic | 29.1 | 29.2 | 29.1 | 29.1 | **+0%** |
+| Independent DQN | 25.1 | 25.0 | 25.2 | 24.6 | **-2%** |
+| Independent PPO | 24.7 | 24.7 | 24.7 | 24.3 | **-2%** |
+| MA2C | 232.4 | 231.3 | 231.3 | 230.1 | **-1%** |
 <!-- END GENERATED: detector -->
 
 ![Detector failure](results/corridor/plots/corridor_detector_failure.png)
@@ -344,6 +384,13 @@ falls, but whether it is still ahead of the clock when half its detectors are
 dead. Negative means still faster than fixed-time.
 
 <!-- BEGIN GENERATED: margin -->
+| Controller | 0% dead | 12% dead | 25% dead | 50% dead |
+|---|---|---|---|---|
+| Actuated (gap-based) | -49.9 s | -49.9 s | -49.9 s | -49.9 s |
+| Greedy queue heuristic | -55.1 s | -51.1 s | +89.8 s | +264.6 s |
+| Independent DQN | -59.2 s | -51.2 s | +100.1 s | +476.5 s |
+| Independent PPO | -59.5 s | -52.0 s | +138.2 s | +247.8 s |
+| MA2C | +148.2 s | +167.5 s | +185.5 s | +223.1 s |
 <!-- END GENERATED: margin -->
 
 ### 6.3 Zero-shot transfer to unseen topologies
@@ -400,9 +447,103 @@ finding: it is a real deployment cost of a learned policy that a conventional
 controller does not pay.
 
 <!-- BEGIN GENERATED: transfer -->
+| Controller | `corridor2` | `corridor5` | `cologne3` |
+|---|---|---|---|
+| Fixed-time | 58.1 s / 1740 veh | 172.9 s / 2611 veh | 22.8 s / 2856 veh |
+| Actuated (gap-based) | 28.0 s / 1763 veh | 43.3 s / 2860 veh | 25.2 s / 2856 veh |
+| Greedy queue heuristic | 23.3 s / 1761 veh | 43.0 s / 2849 veh | 307.3 s / 2819 veh |
+| Independent DQN | 20.7 s / 1767 veh | 32.2 s / 2872 veh | 13012.5 s / 706 veh |
+| Independent PPO | 20.5 s / 1768 veh | 32.4 s / 2873 veh | 15896.7 s / 504 veh |
+| MA2C | 250.1 s / 1548 veh | 243.5 s / 2514 veh | 54.1 s / 2852 veh |
 <!-- END GENERATED: transfer -->
 
 ![Topology transfer](results/corridor/plots/corridor_transfer.png)
+
+---
+
+## 6.4 MA2C: what the headline number is, and what it is not
+
+MA2C is bottom of every table above, by a wide margin. That ranking is real and
+is not softened here — but reporting it without the following would be
+misleading, because most of the gap is **an interaction between this policy and
+the evaluation protocol**, not a measure of how well it learned.
+
+**It did learn.** Training went from 118.8 to 26.1 mean queue over 170
+episodes, a curve indistinguishable in shape from the other two (§4). The
+policy it arrived at is *soft*: mean entropy 1.197 against 1.386 for a uniform
+policy over four phases.
+
+**The protocol takes each agent's most probable phase.** That is what every
+other controller here is held to, and for a sharp policy it is the right
+reading. For this one it is destructive. Measured over 2000 states, MA2C's
+argmax was phase 0 on 46% of them and phase 2 on 54% — **and phases 1 and 3 on
+none**. Both left-turn movements are therefore never requested at all.
+
+The traces show exactly that happening, which is why the signal-state column
+exists:
+
+<!-- BEGIN GENERATED: phase-service -->
+| Controller | Green phases ever shown | Longest green (s) | Longest a phase went unserved (s) |
+|---|---|---|---|
+| Fixed-time | 4 of 4 | 35 | 95 |
+| Actuated (gap-based) | 4 of 4 | 60 | 100 |
+| Greedy queue heuristic | 4 of 4 | 65 | 320 |
+| Independent DQN | 4 of 4 | 65 | 325 |
+| Independent PPO | 4 of 4 | 55 | 450 |
+| MA2C | 2 of 4 | 160 | 1760 |
+
+Measured on `calibrated`, worst junction of 3, one evaluation hour each. For reference the single-intersection study's bounds are a 60 s maximum green and a 200 s starvation bound.
+<!-- END GENERATED: phase-service -->
+
+MA2C under the deterministic protocol shows **2 of 4 phases** and leaves one
+unserved for **1760 s** — twenty-nine minutes. Nothing in a mean waiting time
+would reveal that on its own; a starved approach carries too few vehicles to
+move the average, which is the same blind spot Addendum E of the
+single-intersection study had to reason around.
+
+Reading the *same trained policy* by sampling instead — which is what it did
+throughout training — gives a different picture:
+
+<!-- BEGIN GENERATED: ma2c-protocol -->
+| Action rule | `calibrated` | `balanced` | `peak` | `reverse` | Throughput |
+|---|---|---|---|---|---|
+| Deterministic (argmax) - the protocol used for every other controller | 232.4 | 179.7 | 233.2 | 131.2 | 2457 |
+| Sampled from the policy - what it did while training | 42.4 | 46.6 | 52.1 | 62.3 | 2719 |
+| *Fixed-time, for reference* | 84.2 | 70.1 | 144.8 | 64.5 | 2629 |
+<!-- END GENERATED: ma2c-protocol -->
+
+**Both numbers are reported because they answer different questions.** The
+deterministic row is "how good is this policy's mode", and it is the one
+comparable with the other five controllers. The sampled row is "how good is
+this policy", and it is the one that reflects what was trained. Choosing only
+the flattering one would be dishonest; choosing only the harsh one would blame
+MA2C for a reading it never optimised for; and quietly switching protocol for a
+single controller would break the comparison everything else rests on.
+
+**What this does not excuse.** Even read generously, MA2C does not beat the
+independent learners, and the plan predicted it might not — the implementation
+omits the LSTM of the published algorithm (§7.3), and a policy whose competence
+lives in its sampling noise is a weaker result than one whose mode is good. The
+honest summary is that MA2C *worked*, *coordinated no better than agents that
+never communicated*, and *is additionally fragile to a protocol the others
+tolerate*.
+
+### A finding that outlived MA2C
+
+The phase-service table above was built to explain MA2C and ended up indicting
+almost everything. Against the project's 200 s starvation bound, **every
+adaptive controller here violates it**: the greedy heuristic at 320 s,
+Independent DQN at 325 s, Independent PPO at 450 s. Only the two SUMO-driven
+baselines stay inside — fixed-time at 95 s and actuated at 100 s — and they do
+so because a cycle that serves every phase in turn structurally cannot starve
+one.
+
+This reproduces at corridor scale what Addendum E found at a single junction,
+and it sharpens it: the learned controllers that *win* on mean waiting time are
+the same ones that quietly leave a movement unserved for five to seven minutes.
+The `+safe` wrapper from the single-intersection study would bound this, and is
+implemented and tested, but **was not swept here** — so this report measures the
+violation without offering the remedy.
 
 ---
 

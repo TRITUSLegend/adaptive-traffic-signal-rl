@@ -77,6 +77,10 @@ LABELS = {
     "idqn": "Independent DQN",
     "ippo": "Independent PPO",
     "ma2c": "MA2C",
+    # Deliberately NOT in CONTROLLER_ORDER: the headline tables hold every
+    # controller to one protocol, and this is the same trained policy read a
+    # second way. It gets its own section instead - see MA2CController.
+    "ma2c-sampled": "MA2C (sampled)",
 }
 
 # Which controllers SUMO drives itself, and therefore which need the actuated
@@ -102,13 +106,13 @@ def load_policy(name: str):
     """Load a trained corridor policy, or explain what is missing."""
     from stable_baselines3 import DQN, PPO
 
-    path = paths.model_file(name)
+    path = paths.model_file("ma2c" if name == "ma2c-sampled" else name)
     if not path.exists():
         raise FileNotFoundError(
             "%s is missing - train it with:  python corridor/%s"
             % (path, "train_ma2c.py" if name == "ma2c"
                else "train_independent.py --algo %s" % name[1:]))
-    if name == "ma2c":
+    if name in ("ma2c", "ma2c-sampled"):
         from corridor.ma2c import MA2C
         return MA2C.load(path)
     if name.endswith("dqn"):
@@ -128,9 +132,11 @@ def build_factory(name: str):
         return C.greedy_factory()
 
     base = name[:-5] if name.endswith("+safe") else name
-    if base == "ma2c":
+    if base in ("ma2c", "ma2c-sampled"):
         from corridor.ma2c import ma2c_factory
-        inner = ma2c_factory(load_policy("ma2c"), base)
+        # The same trained policy; only how its action is drawn differs.
+        inner = ma2c_factory(load_policy("ma2c"), base,
+                             deterministic=(base == "ma2c"))
     else:
         inner = C.policy_factory(load_policy(base), base)
 

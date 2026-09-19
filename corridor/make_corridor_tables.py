@@ -292,6 +292,53 @@ def transfer_table(rows: list) -> str:
     return "\n".join(out)
 
 
+
+def ma2c_protocol_table(rows: list) -> str:
+    """
+    The same trained MA2C policy, read two ways.
+
+    Deterministic is the protocol every other controller is held to. Sampled is
+    what the agent did while training. They differ enormously here, and the
+    reason is a property of the policy rather than of the algorithm - see the
+    phase-service table below it.
+    """
+    if not rows:
+        return None
+    pairs = [("ma2c", "Deterministic (argmax) - the protocol used for every "
+                      "other controller"),
+             ("ma2c-sampled", "Sampled from the policy - what it did while "
+                              "training")]
+    if not any(r["controller"] == "ma2c-sampled" for r in rows):
+        return None
+
+    out = ["| Action rule | " + " | ".join("`%s`" % s for s in SCENARIO_ORDER)
+           + " | Throughput |", "|---|" + "---|" * (len(SCENARIO_ORDER) + 1)]
+    for controller, label in pairs:
+        cells, through = [], []
+        for scenario in SCENARIO_ORDER:
+            wait, _ = cell(rows, controller, scenario, "mean_waiting_time_s")
+            thr, _ = cell(rows, controller, scenario, "throughput_veh")
+            cells.append(fmt(wait))
+            if thr is not None:
+                through.append(thr)
+        mean_thr = statistics.mean(through) if through else None
+        out.append("| %s | %s | %s |" % (label, " | ".join(cells),
+                                         fmt(mean_thr, 0)))
+    # Fixed-time for reference, since the question is whether either beats it.
+    cells = [fmt(cell(rows, BASELINE, s, "mean_waiting_time_s")[0])
+             for s in SCENARIO_ORDER]
+    thr = [cell(rows, BASELINE, s, "throughput_veh")[0] for s in SCENARIO_ORDER]
+    out.append("| *Fixed-time, for reference* | %s | %s |"
+               % (" | ".join(cells), fmt(statistics.mean(thr), 0)))
+    return "\n".join(out)
+
+
+def phase_service_table(rows: list) -> str:
+    """What each controller's signals actually did, read from the traces."""
+    from corridor.phase_service import table as service_table
+    return service_table()
+
+
 # ---------------------------------------------------------------------------
 # Splicing
 # ---------------------------------------------------------------------------
@@ -303,6 +350,8 @@ BUILDERS = [
     ("detector", lambda d: detector_table(d["robust"])),
     ("margin", lambda d: margin_table(d["robust"])),
     ("transfer", lambda d: transfer_table(d["transfer"])),
+    ("ma2c-protocol", lambda d: ma2c_protocol_table(d["eval"])),
+    ("phase-service", lambda d: phase_service_table(d["eval"])),
 ]
 
 
