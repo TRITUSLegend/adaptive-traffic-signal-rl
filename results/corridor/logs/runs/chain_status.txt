@@ -3,3 +3,14 @@
 2026-09-19 05:38:33  STEP 2/3  train ippo  (170 episodes)
 2026-09-19 07:15:23  done 2/3 (exit 0)
 2026-09-19 07:15:23  STEP 3/3  train ma2c  (170 episodes)
+2026-09-19 07:38:10  done 3/3 (exit 1)
+2026-09-19 07:38:10  CHAIN COMPLETE
+--- CORRECTION, written by hand 2026-09-19 ---
+The two lines above are misleading. Step 3 did not fail on its own: MA2C was
+diverging (mean queue climbing 118 -> 362 over ten episodes) and the run was
+killed deliberately at 07:38. Killing the training child let the surviving
+chain.sh lineage record "done 3/3 (exit 1)" and then "CHAIN COMPLETE", which
+is the same tree-kill trap this script's footer warns about - and this time it
+left a false completion record rather than a duplicate chain.
+Steps 1 and 2 (idqn, ippo) are genuine: both exited 0 with 170 episodes and a
+saved model. Step 3 is NOT complete and its model does not exist.

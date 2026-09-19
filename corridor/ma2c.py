@@ -173,17 +173,46 @@ class MA2C:
 
     def shaped_rewards(self, rewards: dict) -> dict:
         """
-        Spatially discounted reward: own queue plus ALPHA times the neighbours'.
+        Spatially discounted reward: a WEIGHTED MEAN of own and neighbours'.
 
         This is the mechanism that makes the agents cooperative rather than
-        three selfish controllers sharing a road.
+        three selfish controllers sharing a road: an agent is rewarded for its
+        own queue plus ALPHA times each neighbour's, so "my neighbour's problem
+        matters to me, but less than mine".
+
+        WHY IT IS DIVIDED BY THE TOTAL WEIGHT
+        -------------------------------------
+        The first version returned the raw weighted SUM, and MA2C diverged:
+        mean queue climbed from 118 to 362 over ten episodes and saturated at
+        gridlock, while the independent learners went from 115 to 39 over the
+        same span. Two things were wrong, and the second is the worse one.
+
+        **The scale was inflated.** An interior agent's reward was 2.5x the raw
+        per-junction value, so its 20-step returns ran to about -160 against
+        roughly -64 in the single-agent case - and the learning rate had been
+        carried over from that single-agent setting unchanged.
+
+        **The scale differed BY POSITION.** An interior junction has two
+        neighbours and an edge junction one, so J2's value function operated on
+        a 1.43x different scale from J1's for no reason other than where it sat
+        in the corridor. The same algorithm was effectively tuned differently
+        at different junctions, which is not a property anyone would choose.
+
+        Dividing by the total weight fixes both while changing nothing about
+        what the mechanism does: the RELATIVE weighting of own versus neighbour
+        is identical, and a lone agent with no neighbours is untouched. It is a
+        weighted mean rather than a weighted sum. Flagged in CORRIDOR_REPORT.md
+        as a deviation from a literal reading of Chu et al., because the paper
+        does not normalise explicitly.
         """
         shaped = {}
         for ts in self.ts_ids:
             total = float(rewards.get(ts, 0.0))
+            weight = 1.0
             for near in self.neighbours.get(ts, []):
                 total += self.alpha * float(rewards.get(near, 0.0))
-            shaped[ts] = total
+                weight += self.alpha
+            shaped[ts] = total / weight
         return shaped
 
     # -- acting ----------------------------------------------------------
@@ -272,8 +301,31 @@ class MA2C:
             log_probs = F.log_softmax(logits, dim=-1)
             chosen = log_probs.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-            policy_loss = -(chosen * advantage.detach()).mean()
-            value_loss = advantage.pow(2).mean()
+            # NORMALISED advantage for the policy gradient, and a SMOOTH-L1
+            # value loss. Both are standard; together they are what stops the
+            # critic starving the actor under a shared gradient clip.
+            #
+            # Measured on the first version, which used the raw advantage and
+            # a squared value loss: with returns around -76, the value loss
+            # came to 2895 against a policy loss of 105. The two heads share
+            # one clip_grad_norm_(0.5), so a total gradient norm of 97 was
+            # scaled by 0.005 and the policy head received 0.036 - half a
+            # percent of its natural step. The actor was effectively frozen
+            # while the critic crawled, MA2C never learned, and mean queue
+            # drifted from 118 to 362 vehicles instead of descending.
+            #
+            # Normalising the advantage makes the policy gradient independent
+            # of reward scale, which is what PPO does by default. Smooth-L1
+            # bounds the critic's gradient per element instead of letting it
+            # grow with the square of the error, which is why SB3's DQN uses it
+            # for the same reason. Neither is fitted to this problem's numbers.
+            normalised = advantage.detach()
+            if normalised.numel() > 1:
+                normalised = ((normalised - normalised.mean())
+                              / (normalised.std() + 1e-8))
+
+            policy_loss = -(chosen * normalised).mean()
+            value_loss = F.smooth_l1_loss(values, returns)
             entropy = -(log_probs.exp() * log_probs).sum(dim=-1).mean()
             loss = (policy_loss + VALUE_COEF * value_loss
                     - ENTROPY_COEF * entropy)

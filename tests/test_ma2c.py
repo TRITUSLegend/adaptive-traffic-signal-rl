@@ -33,6 +33,7 @@ from corridor.ma2c import (  # noqa: E402
     MAX_NEIGHBOURS,
     N_ACTIONS,
     OBS_DIM,
+    ROLLOUT,
     MA2C,
     ActorCritic,
     agent_input_dim,
@@ -165,21 +166,63 @@ def test_resetting_policies_restores_the_uniform_prior():
 # The spatially discounted reward
 # ---------------------------------------------------------------------------
 def test_interior_agent_absorbs_both_neighbours_rewards():
+    """A weighted MEAN: own plus ALPHA per neighbour, over the total weight."""
     model = MA2C(IDS)
     shaped = model.shaped_rewards({"J1": -1.0, "J2": -2.0, "J3": -4.0})
-    assert shaped["J2"] == pytest.approx(-2.0 + ALPHA * (-1.0) + ALPHA * (-4.0))
+    expected = (-2.0 + ALPHA * (-1.0) + ALPHA * (-4.0)) / (1 + 2 * ALPHA)
+    assert shaped["J2"] == pytest.approx(expected)
 
 
 def test_edge_agent_absorbs_only_its_one_neighbour():
     model = MA2C(IDS)
     shaped = model.shaped_rewards({"J1": -1.0, "J2": -2.0, "J3": -4.0})
-    assert shaped["J1"] == pytest.approx(-1.0 + ALPHA * (-2.0))
+    expected = (-1.0 + ALPHA * (-2.0)) / (1 + ALPHA)
+    assert shaped["J1"] == pytest.approx(expected)
 
 
 def test_shaping_is_not_applied_twice_to_the_same_agent():
     model = MA2C(IDS)
     shaped = model.shaped_rewards({"J1": 0.0, "J2": -1.0, "J3": 0.0})
-    assert shaped["J2"] == pytest.approx(-1.0)
+    assert shaped["J2"] == pytest.approx(-1.0 / (1 + 2 * ALPHA))
+
+
+def test_shaping_does_not_inflate_the_reward_scale():
+    """
+    The divergence this guards. A weighted SUM made an interior agent's reward
+    2.5x the raw per-junction value, so its returns ran far beyond the scale
+    the shared learning rate was chosen for, and MA2C climbed from 118 to 362
+    vehicles instead of descending.
+    """
+    model = MA2C(IDS)
+    uniform = {ts: -5.0 for ts in IDS}
+    for value in model.shaped_rewards(uniform).values():
+        assert value == pytest.approx(-5.0), (
+            "a uniformly bad corridor must shape to the same value it started "
+            "at, not to a multiple of it")
+
+
+def test_every_agent_shares_one_reward_scale_whatever_its_neighbour_count():
+    """
+    The worse half of the same defect: an interior junction has two neighbours
+    and an edge junction one, so an unnormalised sum gave J2 a value function
+    on a 1.43x different scale from J1's - the same algorithm effectively tuned
+    differently by position in the corridor.
+    """
+    model = MA2C(IDS)
+    shaped = model.shaped_rewards({ts: -5.0 for ts in IDS})
+    assert shaped["J1"] == pytest.approx(shaped["J2"])
+    assert shaped["J2"] == pytest.approx(shaped["J3"])
+
+
+def test_relative_weighting_of_neighbours_is_preserved():
+    """
+    Normalising must not flatten the mechanism: a neighbour still counts for
+    less than the agent itself, in exactly the ALPHA ratio.
+    """
+    model = MA2C(IDS)
+    own_only = model.shaped_rewards({"J1": -1.0, "J2": 0.0, "J3": 0.0})["J2"]
+    neighbour_only = model.shaped_rewards({"J1": 0.0, "J2": -1.0, "J3": 0.0})["J2"]
+    assert neighbour_only == pytest.approx(own_only / ALPHA)
 
 
 def test_a_lone_agent_reward_is_unchanged():
@@ -404,3 +447,116 @@ def test_resetting_clears_the_stored_inputs():
     model.act(fake_observations({ts: 0.5 for ts in IDS}))
     model.reset_policies()
     assert model.last_inputs == {}
+
+
+# ---------------------------------------------------------------------------
+# Can it actually learn? The end-to-end property everything else serves
+# ---------------------------------------------------------------------------
+def test_the_learner_finds_a_better_action_when_one_exists():
+    """
+    The test that would have caught the divergence, and the one every other
+    test in this file was missing.
+
+    Each mechanism was verified in isolation - neighbour assembly, spatial
+    discount, simultaneity, persistence - and all of them were correct. The
+    learner still could not learn, because the defect was in how the actor's
+    and critic's gradients shared one clip: with returns around -76, the value
+    loss came to 2895 against a policy loss of 105, a total gradient norm of 97
+    was scaled to 0.5, and the policy head received half a percent of its
+    natural step.
+
+    On the corridor that showed up as mean queue climbing 118 -> 362 over ten
+    episodes. Measured here on a problem whose answer is known: one action pays
+    -2 and the rest pay -6, so a working learner must end up preferring it.
+    The unfixed version collapsed onto a WRONG action with 95% confidence,
+    which is why the corridor gridlocked rather than merely failing to improve.
+    """
+    import torch
+    import torch.nn.functional as F
+
+    rng = np.random.default_rng(0)
+    model = MA2C(["J1"], seed=0)
+    good = 2
+
+    for _ in range(400):
+        actions = [int(rng.integers(0, N_ACTIONS)) for _ in range(ROLLOUT)]
+        rewards = [(-2.0 if a == good else -6.0) for a in actions]
+        model.update({"J1": {
+            "inputs": [np.zeros(agent_input_dim(), dtype=np.float32)
+                       for _ in range(ROLLOUT)],
+            "actions": actions,
+            "rewards": rewards,
+            "bootstrap": -60.0,
+        }})
+
+    with torch.no_grad():
+        logits, _ = model.nets["J1"](torch.zeros(1, agent_input_dim()))
+        probs = F.softmax(logits, dim=-1).squeeze(0).numpy()
+
+    assert probs[good] > 0.40, (
+        "the learner ended at P(best action)=%.3f against 0.25 for a coin "
+        "flip, so it is not learning" % probs[good])
+    assert probs.argmax() == good, (
+        "the learner became confident in action %d when %d is the better one"
+        % (probs.argmax(), good))
+
+
+def test_learning_does_not_come_from_entropy_collapse():
+    """
+    A policy can reach high P(best) by collapsing to a single action, which
+    looks like learning and is not. Some entropy must survive.
+    """
+    import torch
+    import torch.nn.functional as F
+
+    rng = np.random.default_rng(1)
+    model = MA2C(["J1"], seed=1)
+    for _ in range(400):
+        actions = [int(rng.integers(0, N_ACTIONS)) for _ in range(ROLLOUT)]
+        rewards = [(-2.0 if a == 2 else -6.0) for a in actions]
+        model.update({"J1": {
+            "inputs": [np.zeros(agent_input_dim(), dtype=np.float32)
+                       for _ in range(ROLLOUT)],
+            "actions": actions, "rewards": rewards, "bootstrap": -60.0}})
+
+    with torch.no_grad():
+        logits, _ = model.nets["J1"](torch.zeros(1, agent_input_dim()))
+        probs = F.softmax(logits, dim=-1).squeeze(0).numpy()
+    entropy = float(-(probs * np.log(probs + 1e-8)).sum())
+    assert entropy > 0.2, "policy collapsed to a point mass (entropy %.3f)" % entropy
+
+
+def test_the_critic_gradient_cannot_swamp_the_actor():
+    """
+    The mechanism, pinned directly. Actor and critic share one
+    clip_grad_norm_, so if the value loss grows with the square of a large
+    error it takes essentially the whole gradient budget. A smooth-L1 value
+    loss bounds it per element instead.
+    """
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+
+    from corridor.ma2c import MAX_GRAD_NORM, VALUE_COEF
+
+    model = MA2C(["J1"], seed=0)
+    net = model.nets["J1"]
+    inputs = torch.zeros(ROLLOUT, agent_input_dim())
+    returns = torch.full((ROLLOUT,), -76.0)
+    actions = torch.zeros(ROLLOUT, dtype=torch.int64)
+
+    logits, values = net(inputs)
+    advantage = returns - values
+    normalised = advantage.detach()
+    normalised = (normalised - normalised.mean()) / (normalised.std() + 1e-8)
+    log_probs = F.log_softmax(logits, dim=-1)
+    chosen = log_probs.gather(1, actions.unsqueeze(1)).squeeze(1)
+    loss = (-(chosen * normalised).mean()
+            + VALUE_COEF * F.smooth_l1_loss(values, returns))
+
+    net.zero_grad()
+    loss.backward()
+    total = float(nn.utils.clip_grad_norm_(net.parameters(), MAX_GRAD_NORM))
+    assert total < 50.0, (
+        "total gradient norm %.1f means the clip is discarding almost all of "
+        "it, and the actor's share with it" % total)
