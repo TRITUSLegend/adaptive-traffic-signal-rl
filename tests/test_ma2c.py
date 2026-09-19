@@ -33,6 +33,7 @@ from corridor.ma2c import (  # noqa: E402
     MAX_NEIGHBOURS,
     N_ACTIONS,
     OBS_DIM,
+    REWARD_SCALE,
     ROLLOUT,
     MA2C,
     ActorCritic,
@@ -170,43 +171,39 @@ def test_interior_agent_absorbs_both_neighbours_rewards():
     model = MA2C(IDS)
     shaped = model.shaped_rewards({"J1": -1.0, "J2": -2.0, "J3": -4.0})
     expected = (-2.0 + ALPHA * (-1.0) + ALPHA * (-4.0)) / (1 + 2 * ALPHA)
-    assert shaped["J2"] == pytest.approx(expected)
+    assert shaped["J2"] == pytest.approx(REWARD_SCALE * expected)
 
 
 def test_edge_agent_absorbs_only_its_one_neighbour():
     model = MA2C(IDS)
     shaped = model.shaped_rewards({"J1": -1.0, "J2": -2.0, "J3": -4.0})
     expected = (-1.0 + ALPHA * (-2.0)) / (1 + ALPHA)
-    assert shaped["J1"] == pytest.approx(expected)
+    assert shaped["J1"] == pytest.approx(REWARD_SCALE * expected)
 
 
 def test_shaping_is_not_applied_twice_to_the_same_agent():
     model = MA2C(IDS)
     shaped = model.shaped_rewards({"J1": 0.0, "J2": -1.0, "J3": 0.0})
-    assert shaped["J2"] == pytest.approx(-1.0 / (1 + 2 * ALPHA))
+    assert shaped["J2"] == pytest.approx(REWARD_SCALE * -1.0 / (1 + 2 * ALPHA))
 
 
-def test_shaping_does_not_inflate_the_reward_scale():
+def test_shaping_is_a_weighted_mean_not_a_weighted_sum():
     """
-    The divergence this guards. A weighted SUM made an interior agent's reward
-    2.5x the raw per-junction value, so its returns ran far beyond the scale
-    the shared learning rate was chosen for, and MA2C climbed from 118 to 362
-    vehicles instead of descending.
+    A weighted SUM made an interior agent's reward 2.5x the raw per-junction
+    value. Up to the deliberate REWARD_SCALE, a uniformly bad corridor must
+    shape to the value it started at rather than to a multiple of it.
     """
     model = MA2C(IDS)
-    uniform = {ts: -5.0 for ts in IDS}
-    for value in model.shaped_rewards(uniform).values():
-        assert value == pytest.approx(-5.0), (
-            "a uniformly bad corridor must shape to the same value it started "
-            "at, not to a multiple of it")
+    for value in model.shaped_rewards({ts: -5.0 for ts in IDS}).values():
+        assert value == pytest.approx(REWARD_SCALE * -5.0)
 
 
 def test_every_agent_shares_one_reward_scale_whatever_its_neighbour_count():
     """
-    The worse half of the same defect: an interior junction has two neighbours
-    and an edge junction one, so an unnormalised sum gave J2 a value function
-    on a 1.43x different scale from J1's - the same algorithm effectively tuned
-    differently by position in the corridor.
+    An interior junction has two neighbours and an edge junction one, so an
+    unnormalised sum gave J2 a value function on a 1.43x different scale from
+    J1's - the same algorithm effectively tuned differently by position in the
+    corridor.
     """
     model = MA2C(IDS)
     shaped = model.shaped_rewards({ts: -5.0 for ts in IDS})
@@ -216,8 +213,9 @@ def test_every_agent_shares_one_reward_scale_whatever_its_neighbour_count():
 
 def test_relative_weighting_of_neighbours_is_preserved():
     """
-    Normalising must not flatten the mechanism: a neighbour still counts for
-    less than the agent itself, in exactly the ALPHA ratio.
+    Neither normalising nor rescaling may flatten the mechanism: a neighbour
+    still counts for less than the agent itself, in exactly the ALPHA ratio.
+    Both constants cancel in the ratio, which is the point.
     """
     model = MA2C(IDS)
     own_only = model.shaped_rewards({"J1": -1.0, "J2": 0.0, "J3": 0.0})["J2"]
@@ -225,9 +223,26 @@ def test_relative_weighting_of_neighbours_is_preserved():
     assert neighbour_only == pytest.approx(own_only / ALPHA)
 
 
-def test_a_lone_agent_reward_is_unchanged():
+def test_the_reward_scale_brings_returns_into_a_reachable_band():
+    """
+    REWARD_SCALE = 1 - GAMMA turns the discounted sum the critic must predict
+    into a discounted average. Without it a per-step reward near -5 implies
+    returns near -100, which Adam cannot travel to within a 170-episode run -
+    measured, the critic sat at -4.2 against a true return of -44.
+    """
+    assert REWARD_SCALE == pytest.approx(1.0 - GAMMA)
+    per_step = REWARD_SCALE * -5.0
+    asymptotic_return = per_step / (1.0 - GAMMA)
+    assert abs(asymptotic_return) < 10.0, (
+        "returns of %.1f are still too large for the critic to reach"
+        % asymptotic_return)
+
+
+def test_a_lone_agent_reward_is_only_rescaled():
+    """With no neighbours there is nothing to weight, so only the scale acts."""
     model = MA2C(["J1"])
-    assert model.shaped_rewards({"J1": -3.0})["J1"] == pytest.approx(-3.0)
+    assert model.shaped_rewards({"J1": -3.0})["J1"] == pytest.approx(
+        REWARD_SCALE * -3.0)
 
 
 def test_shaping_preserves_the_sign_of_a_uniformly_bad_corridor():
@@ -276,7 +291,7 @@ def test_agents_do_not_share_parameters():
 
 def test_an_update_changes_the_acting_agents_parameters():
     model = MA2C(IDS)
-    before = model.nets["J1"].policy.weight.detach().clone()
+    before = model.nets["J1"].actor[-1].weight.detach().clone()
     batch = {"J1": {
         "inputs": [np.zeros(agent_input_dim(), dtype=np.float32) for _ in range(4)],
         "actions": [0, 1, 2, 3],
@@ -284,19 +299,19 @@ def test_an_update_changes_the_acting_agents_parameters():
         "bootstrap": 0.0,
     }}
     model.update(batch)
-    after = model.nets["J1"].policy.weight.detach()
+    after = model.nets["J1"].actor[-1].weight.detach()
     assert not np.allclose(before.numpy(), after.numpy())
 
 
 def test_an_update_leaves_other_agents_untouched():
     model = MA2C(IDS)
-    before = model.nets["J2"].policy.weight.detach().clone()
+    before = model.nets["J2"].actor[-1].weight.detach().clone()
     batch = {"J1": {
         "inputs": [np.zeros(agent_input_dim(), dtype=np.float32)],
         "actions": [0], "rewards": [-1.0], "bootstrap": 0.0,
     }}
     model.update(batch)
-    assert np.allclose(before.numpy(), model.nets["J2"].policy.weight.detach().numpy())
+    assert np.allclose(before.numpy(), model.nets["J2"].actor[-1].weight.detach().numpy())
 
 
 def test_an_empty_rollout_is_ignored_rather_than_crashing():

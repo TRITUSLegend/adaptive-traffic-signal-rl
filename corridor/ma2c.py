@@ -74,6 +74,27 @@ OBS_DIM = 21        # sumo-rl default per junction: phase one-hot + densities + 
 N_ACTIONS = 4       # the four green phases
 
 GAMMA = 0.95        # ~100 s horizon ~ one signal cycle; matches the rest of the project
+
+# Converts the discounted SUM of rewards into a discounted AVERAGE.
+#
+# Without it the critic cannot arrive. A per-step shaped reward around -5 over
+# a 1/(1-GAMMA) = 20 step horizon implies returns near -100, and Adam moves a
+# parameter about `lr` per step, so travelling from an initialisation near zero
+# to -100 needs on the order of 150,000 updates. A 170-episode run has 6,120.
+# Measured after four episodes the critic sat at -4.2 against a true return of
+# -44, and a critic that never arrives is not merely slow: with V near zero the
+# advantage is just the return, whose positional structure inside a rollout the
+# policy then learns instead of anything about actions.
+#
+# Multiplying by (1 - GAMMA) rescales the return to the same units as one
+# step's reward, which is a bounded, interpretable quantity the critic can
+# reach in a few thousand updates. It is the same reasoning the single-
+# intersection reward uses in dividing by its lane count - "purely numerical
+# hygiene ... dividing by a constant cannot change which policy is optimal, it
+# just rescales every value" - and it leaves the optimal policy untouched for
+# the same reason. The actor is unaffected either way, because it consumes a
+# NORMALISED advantage, in which any constant factor cancels.
+REWARD_SCALE = 1.0 - GAMMA
 HIDDEN = 64
 LEARNING_RATE = 3e-4
 ENTROPY_COEF = 0.01
@@ -108,20 +129,54 @@ def neighbours(ts_ids: list) -> dict:
 
 
 class ActorCritic(nn.Module):
-    """One agent's policy and value function, with separate heads."""
+    """
+    One agent's policy and value function, as two SEPARATE networks.
+
+    WHY THEY DO NOT SHARE A BODY
+    ----------------------------
+    A shared trunk is the more common design and it is what this class had
+    first. It failed here, twice, for the same underlying reason: actor and
+    critic then share one `clip_grad_norm_`, and their losses are on wildly
+    different scales.
+
+    With a squared value loss the critic dominated - value loss 2895 against a
+    policy loss of 105, so the clip scaled everything by 0.005 and the policy
+    head received half a percent of its natural step. Switching the critic to
+    smooth-L1 fixed that and broke the other side: the critic's gradient is
+    then bounded at 1 per element, so with a typical error of 40 it needed on
+    the order of 130,000 updates and had 6,000. Measured after four episodes it
+    predicted -1.9 against a true return of -41.9, essentially still at its
+    initialisation.
+
+    A dead critic is not a slow critic. With V near zero the advantage is just
+    the return, and n-step returns carry a positional artifact - a step early in
+    a rollout accumulates more discounted reward than a step late in it. Once
+    normalised, that becomes "actions late in a rollout are good", which is
+    uncorrelated with whether the action was any good. The policy learned that
+    artifact confidently, which is why the corridor starved its busiest
+    movement rather than merely failing to improve.
+
+    Separating the networks gives each its own gradient budget, so the critic
+    can use a squared loss and converge quickly while the actor's step is
+    unaffected by the critic's scale. It costs a few thousand extra parameters
+    and removes the coupling entirely.
+    """
 
     def __init__(self, input_dim: int):
         super().__init__()
-        self.body = nn.Sequential(
+        self.actor = nn.Sequential(
             nn.Linear(input_dim, HIDDEN), nn.ReLU(),
             nn.Linear(HIDDEN, HIDDEN), nn.ReLU(),
+            nn.Linear(HIDDEN, N_ACTIONS),
         )
-        self.policy = nn.Linear(HIDDEN, N_ACTIONS)
-        self.value = nn.Linear(HIDDEN, 1)
+        self.critic = nn.Sequential(
+            nn.Linear(input_dim, HIDDEN), nn.ReLU(),
+            nn.Linear(HIDDEN, HIDDEN), nn.ReLU(),
+            nn.Linear(HIDDEN, 1),
+        )
 
     def forward(self, x):
-        h = self.body(x)
-        return self.policy(h), self.value(h).squeeze(-1)
+        return self.actor(x), self.critic(x).squeeze(-1)
 
 
 class MA2C:
@@ -212,7 +267,10 @@ class MA2C:
             for near in self.neighbours.get(ts, []):
                 total += self.alpha * float(rewards.get(near, 0.0))
                 weight += self.alpha
-            shaped[ts] = total / weight
+            # REWARD_SCALE turns the discounted sum the critic must predict
+            # into a discounted average - see its definition for why the
+            # critic could not otherwise arrive.
+            shaped[ts] = REWARD_SCALE * total / weight
         return shaped
 
     # -- acting ----------------------------------------------------------
@@ -325,16 +383,24 @@ class MA2C:
                               / (normalised.std() + 1e-8))
 
             policy_loss = -(chosen * normalised).mean()
-            value_loss = F.smooth_l1_loss(values, returns)
             entropy = -(log_probs.exp() * log_probs).sum(dim=-1).mean()
-            loss = (policy_loss + VALUE_COEF * value_loss
-                    - ENTROPY_COEF * entropy)
+            actor_loss = policy_loss - ENTROPY_COEF * entropy
+            # A squared loss, because the critic now has its own gradient
+            # budget and can afford a step proportional to its error. That is
+            # what lets it travel from 0 to around -40 within a training run
+            # instead of needing twenty times more updates than exist.
+            critic_loss = VALUE_COEF * F.mse_loss(values, returns)
 
+            # Each network is clipped against its own norm, so the critic's
+            # scale cannot consume the actor's step or vice versa.
             self.optimisers[ts].zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(self.nets[ts].parameters(), MAX_GRAD_NORM)
+            (actor_loss + critic_loss).backward()
+            nn.utils.clip_grad_norm_(self.nets[ts].actor.parameters(),
+                                     MAX_GRAD_NORM)
+            nn.utils.clip_grad_norm_(self.nets[ts].critic.parameters(),
+                                     MAX_GRAD_NORM)
             self.optimisers[ts].step()
-            losses[ts] = float(loss.item())
+            losses[ts] = float((actor_loss + critic_loss).item())
         return losses
 
     def reset_policies(self) -> None:
