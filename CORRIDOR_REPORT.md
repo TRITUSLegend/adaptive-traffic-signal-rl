@@ -35,6 +35,48 @@ the comparison is drawn here.
 
 ---
 
+## 0. What was found
+
+**Under clean conditions, learning wins — but not by much, and not over the
+cheap alternatives.** Independent PPO cuts mean waiting time 63.5% against
+fixed-time and Independent DQN 57.8%. But SUMO's stock actuated controller
+manages 54.3% and a five-line queue heuristic 57.5%, so the entire return on
+two hours of training and a neural network is roughly **six percentage points
+over gap-based actuation that ships with the simulator**. Throughput is flat
+across all of them, so those reductions are real rather than bought by
+admitting fewer vehicles.
+
+**Under detector failure, the ranking inverts.** Every adaptive controller
+crosses *above* fixed-time between 12% and 25% of lane detectors failing
+stuck-at-zero. At 12% they are all ~50 s ahead of the clock; at 25% they are
+90–138 s behind it; at 50% Independent DQN is 476 s behind. A quarter of
+detectors dying is enough to make a learned controller worse than a fixed
+timer — while the same fault in *freeze* mode costs almost nothing, because a
+stale reading misleads far less than a confidently empty one.
+
+**Transfer succeeds across scale and fails on reality.** The independent
+learners drive 2- and 5-junction corridors as well as the 3 they trained on,
+unadapted. On `cologne3` — a real Cologne corridor — they gridlock, clearing
+504 and 706 vehicles of 2,856 where the city's own fixed-time plan clears all
+of them.
+
+**Every adaptive controller starves a movement.** Against the project's 200 s
+bound: greedy 320 s, Independent DQN 325 s, Independent PPO 450 s. Only the two
+SUMO-driven baselines stay inside, structurally. None of this is visible in a
+mean waiting time.
+
+**MA2C, the coordinated method, did not beat agents that never communicated.**
+It learned (118.8 → 26.1 mean queue) but its policy is soft, and the
+deterministic protocol every other controller is held to reads only two of its
+four phases — so its headline number is dominated by an evaluation artifact.
+Both readings are reported in §6.4.
+
+The short version: **on a clean corridor, deep RL is a marginal improvement over
+a stock actuated controller; under the faults a real deployment would meet, it
+is worse than a clock.** §6 is where the interesting part of this study lives.
+
+---
+
 ## 1. What the brief asked for, and where this lands
 
 | Requirement | Where it is met |
@@ -459,6 +501,47 @@ controller does not pay.
 
 ![Topology transfer](results/corridor/plots/corridor_transfer.png)
 
+### What the transfer results show
+
+**Across scale, the independent learners transfer essentially perfectly.** On
+`corridor2` and `corridor5` — two and five junctions against the three they
+trained on — Independent DQN and PPO remain the best controllers on the road,
+at 20.5–20.7 s and 32.2–32.4 s, ahead of the heuristic and both baselines. They
+were never told how long the corridor is, and lengthening it by two junctions or
+shortening it by one costs them nothing. Nothing was adapted to achieve that:
+the projection is a no-op on a corridor we generated, so this is topology alone.
+
+**On real geometry they collapse completely.** On `cologne3`, Independent DQN
+records 13,013 s of mean waiting time and Independent PPO 15,897 s — with
+throughput falling from 2,856 vehicles to **706 and 504**. That is not a
+degraded controller, it is a gridlocked network: four fifths of the traffic
+never gets through the hour. The city's own fixed-time plan manages 22.8 s on
+the same demand, and the greedy heuristic — which reads the live signal and has
+nothing learned to misapply — manages 307 s while still clearing 2,819 vehicles.
+
+Two honest qualifications, both of which cut against reading this as a clean
+verdict on deep RL:
+
+1. **The `cologne3` number mixes topology with adaptation.** Its junctions have
+   3/4/4 phases and 5/6/8 lanes against the 4 and 8 trained on, so the learned
+   controllers run through the zero-padding projection of §6.3 while the
+   baselines and the heuristic need nothing. Part of this failure is the
+   projection, and this experiment cannot separate the two. That is precisely
+   why the clean transfers exist.
+2. **MA2C is the exception here, and probably by accident.** It records 54.1 s
+   on `cologne3` with throughput intact — better than the greedy heuristic and
+   far better than the two learners that beat it everywhere else. A policy whose
+   argmax covers only two phases (§6.4) is close to a two-phase cycle, and a
+   crude cycle transplants onto unfamiliar geometry better than a confident
+   policy applying a learned response to inputs that no longer mean what it
+   thinks. It is a reminder that on transfer, being less committed can beat
+   being better.
+
+**The practical reading.** A corridor policy generalises across corridors of the
+same design and does not generalise to a real intersection layout it has never
+seen. For deployment that is the more consequential of the two, and it is the
+direction this study's own clean-conditions numbers would have hidden.
+
 ---
 
 ## 6.4 MA2C: what the headline number is, and what it is not
@@ -582,7 +665,20 @@ Stated as plainly as the single-intersection study states its own.
 7. **Detector failure is modelled at the observation, not the sensor.** Real
    failures have correlated causes — a cabinet loses power and takes an approach
    with it — whereas lanes here fail independently.
-8. **The demand-shift study covers two of the four shifts planned.**
+8. **The detector-failure study cannot reach the actuated baseline.** The
+   perturbation corrupts the controller's observation, and SUMO drives actuated
+   from its own induction loops. Its flat line under failure is arithmetic, not
+   robustness, and the one baseline a practitioner would most want the answer
+   for is therefore unanswered here. §6.1 states this where the table appears.
+9. **MA2C's headline number is protocol-bound.** Its deterministic result is
+   dominated by an argmax that covers two of four phases; the same policy
+   sampled is a working controller (§6.4). Both are reported, but it means
+   "MA2C ranked last" is a statement about a reading, not only about a policy.
+10. **The `cologne3` transfer confounds topology with adaptation.** The learned
+    controllers pass through a zero-padding projection there and the baselines
+    do not, so their collapse cannot be attributed to unfamiliar geometry
+    alone. The synthetic transfers are the clean measurement.
+11. **The demand-shift study covers two of the four shifts planned.**
    `CORRIDOR_PLAN.md` §5b listed volume scaling, directional reversal, a
    temporal within-hour peak, and a mid-episode incident. Volume scaling
    (`peak`) and directional reversal (`reverse`) are implemented and reported;
