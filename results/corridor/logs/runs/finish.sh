@@ -1,4 +1,27 @@
 #!/usr/bin/env bash
+###############################################################################
+#                                                                             #
+#   SUPERSEDED - DO NOT RUN THIS SCRIPT                                       #
+#                                                                             #
+#   It is kept only as evidence of the run that produced the corridor          #
+#   results. It is not the way to reproduce or resume anything.               #
+#                                                                             #
+#   Running it RETRAINS MA2C FROM SCRATCH. Step 1 has no resume: it will      #
+#   overwrite corridor/models/ma2c.pt and its training curve, costing about   #
+#   two hours and discarding a finished 170-episode run, before it touches    #
+#   the evaluation at all.                                                    #
+#                                                                             #
+#   What to run instead:                                                      #
+#     * the two robustness sweeps  ->  sweeps.sh (resumable, safe to re-run)  #
+#     * a full reproduction        ->  the sequence in CORRIDOR_REPORT.md,    #
+#                                      section "Reproducing this"             #
+#                                                                             #
+#   History: this script ran steps 1 and 2 successfully on 2026-09-19. Step 3 #
+#   died of system memory, so steps 3 and 4 were rerun from sweeps.sh, which  #
+#   saves after every episode. finish_status.txt carries the correction.      #
+#                                                                             #
+###############################################################################
+#
 # Finish the corridor pipeline: MA2C training, then the full evaluation.
 #
 # STRICTLY SEQUENTIAL. Running two SUMO workloads at once halved throughput

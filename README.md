@@ -173,7 +173,7 @@ corridor/          The multi-intersection corridor extension (see below)
   robustness.py                      detector failure and topology transfer
   phase_service.py                   starvation measured from the traces
 
-tests/             529 tests, run with `python -m pytest`
+tests/             541 tests, run with `python -m pytest`
                    (the counts quoted in the docs are checked by the suite)
 
 results/           Outputs

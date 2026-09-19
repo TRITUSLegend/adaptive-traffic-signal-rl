@@ -86,7 +86,7 @@ see §12. It does not modify anything described below.
 
 ### Verified-green as of 2026-09-20
 
-- `python -m pytest` → **513 passed** (276 of them the single-intersection study)
+- `python -m pytest` → **541 passed** (276 of them the single-intersection study)
 - `python -m ruff check .` → **All checks passed**
 - `git status` → **clean**
 - `results/logs/evaluation_raw.csv` → **390 rows** = 13 controllers × 6 scenarios × 5 seeds, no gaps
@@ -126,7 +126,7 @@ legible:
 | stable-baselines3 | 2.7.1 |
 | others | gymnasium 1.2.3, numpy 2.5.2, pandas 3.0.5, matplotlib 3.11.1 |
 | Platform | Windows 11; git-bash and PowerShell both available |
-| Git | branch `master`, 38 commits, working tree clean |
+| Git | branch `master`, working tree clean |
 
 **`sumo_setup.py` must be imported before any `traci` / `sumolib` / `sumo_rl`
 import.** `sumo_rl` raises `ImportError` at import time if `SUMO_HOME` is unset.
@@ -145,7 +145,7 @@ Every entry-point script already does this; preserve it in anything new.
 | 7 | `eval/evaluate.py` | All controllers x all scenarios x 5 seeds | ~26 min |
 | 8 | `eval/make_plots.py` | Figures | s |
 | 9 | `eval/make_tables.py --write` | Splices tables into `REPORT.md` | s |
-| 10 | `python -m pytest` | 513 tests | ~6 s |
+| 10 | `python -m pytest` | 541 tests | ~6 s |
 
 Steps 5–7 are the long ones. Every script supports `--help`.
 
@@ -285,7 +285,7 @@ corridor/           THE CORRIDOR EXTENSION - see 12
   paths.py                         single naming authority (the F2 lesson)
   networks/ routes/ models/        generated nets, demand, trained policies
 
-tests/                             529 tests; documented counts self-check
+tests/                             541 tests; documented counts self-check
 results/
   logs/     per-episode CSVs, summaries, 78 trace CSVs, runs/ chain logs
   plots/    4 figures used in REPORT.md
@@ -421,7 +421,7 @@ find . -path ./.venv -prune -o -name "__pycache__" -type d -exec rm -rf {} +
 ## 10. Testing discipline
 
 ```bash
-./.venv/Scripts/python.exe -m pytest        # 529 tests, ~6 s
+./.venv/Scripts/python.exe -m pytest        # 541 tests, ~6 s
 ./.venv/Scripts/python.exe -m ruff check .  # rule set pinned in pyproject.toml
 ```
 
@@ -488,7 +488,7 @@ approved plan and the reasoning behind each design choice.
 A 3-junction arterial tiled from the existing geometry (its compiled phase
 strings come out identical to the validated single-intersection plan), demand
 calibrated from `cologne3`'s real busiest hour, six controllers, and three
-robustness studies. 420 evaluation episodes across the clean sweep, the
+robustness studies. 440 evaluation episodes across the clean sweep, the
 detector-failure sweep and topology transfer.
 
 | Controller | Delay vs fixed-time |
