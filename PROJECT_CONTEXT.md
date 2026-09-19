@@ -84,7 +84,7 @@ see §12. It does not modify anything described below.
 | Repository hygiene | tripinfo + caches removed | **complete** (284 MB → 19 MB) |
 | Stretch goal 9 (multi-intersection corridor) | — | **reopened as new work — see §12** |
 
-### Verified-green as of 2026-09-19
+### Verified-green as of 2026-09-20
 
 - `python -m pytest` → **513 passed** (276 of them the single-intersection study)
 - `python -m ruff check .` → **All checks passed**
@@ -240,7 +240,8 @@ README.md            User-facing setup and run instructions
 REPORT.md            The deliverable: findings, method, limitations, addenda A-E
 VERIFICATION.md      Evidence that audited defects D1-D9 and F1-F4 were fixed
 docs/PROGRESS.md     HISTORICAL build log (superseded; design rationale valid)
-docs/REMEDIATION_LOG.md  Working log (STALE Phase 3 table - see 3.2)
+docs/REMEDIATION_LOG.md  Working log (HISTORICAL; its Phase 3 table was
+                         corrected 2026-09-19 and now reads past tense)
 
 sumo_setup.py        Locates SUMO. Import before any traci/sumolib/sumo_rl.
 smoke_test.py        5-check end-to-end toolchain verification
@@ -271,11 +272,25 @@ eval/
   significance.py                  paired t + exact Wilcoxon (addendum A)
   followups.py                     generates addenda B-E
 
-tests/                             276 tests; documented counts self-check
+corridor/           THE CORRIDOR EXTENSION - see 12
+  build_corridor.py                generates an N-junction arterial
+  generate_corridor_routes.py      demand calibrated from cologne3
+  env.py                           the one corridor episode runner
+  controllers.py                   fixed-time, actuated, greedy, RL wrappers
+  ma2c.py / vec_env.py             MA2C from scratch; SB3 vector wrapper
+  train_independent.py / train_ma2c.py
+  evaluate_corridor.py / robustness.py / transfer.py
+  perturbations.py                 detector failure
+  phase_service.py                 starvation measured from traces
+  paths.py                         single naming authority (the F2 lesson)
+  networks/ routes/ models/        generated nets, demand, trained policies
+
+tests/                             529 tests; documented counts self-check
 results/
   logs/     per-episode CSVs, summaries, 78 trace CSVs, runs/ chain logs
   plots/    4 figures used in REPORT.md
   tripinfo/ raw SUMO per-vehicle XML - REGENERABLE, gitignored, see 8
+  corridor/ the corridor's own logs, plots and (gitignored) tripinfo
 ```
 
 ---
@@ -406,26 +421,27 @@ find . -path ./.venv -prune -o -name "__pycache__" -type d -exec rm -rf {} +
 ## 10. Testing discipline
 
 ```bash
-./.venv/Scripts/python.exe -m pytest        # 276 tests, ~3 s
+./.venv/Scripts/python.exe -m pytest        # 529 tests, ~6 s
 ./.venv/Scripts/python.exe -m ruff check .  # rule set pinned in pyproject.toml
 ```
 
 The suite targets places where a bug would be **quiet rather than loud** — a
 number that is wrong but plausible:
 
-| Module | Tests | Guards |
-|---|---|---|
-| `test_webster.py` | 71 | Green allocation, delay formula, per-scenario plans |
-| `test_followups.py` | 29 | Addendum generators: branch choice and table shape |
-| `test_significance.py` | 27 | The hand-rolled t and Wilcoxon distributions |
-| `test_route_determinism.py` | 26 | D1, seeding, arrival process, held-out seeds |
-| `test_evaluate_merge.py` | 25 | Append-mode merge, tagged and `+safe` names |
-| `test_safety_constraints.py` | 24 | F1, F4 — max green and the starvation bound |
-| `test_network_phases.py` | 22 | Phase strings, exclusivity, amber derivation |
-| `test_output_naming.py` | 19 | F2, F3 — trace filenames, generated-table guards |
-| `test_report_matches_data.py` | 16 | D4, report-to-CSV provenance |
-| `test_tripinfo.py` | 9 | Trip parsing, survivorship bias |
-| `test_documented_counts.py` | 8 | This table and these totals, against the suite |
+**The per-module breakdown lives in `VERIFICATION.md`, not here.** It used to
+be duplicated in this file and drifted to listing 11 of 23 modules, because
+`test_documented_counts.py` enforces the counts in `README.md` and
+`VERIFICATION.md` and does not read this file. One enforced table beats two when
+only one of them is checked — which is this project's own lesson about documents
+being verified by running rather than by reading.
+
+The suite targets places where a bug would be **quiet rather than loud** — a
+number that is wrong but plausible. The largest guards:
+`test_webster.py` (green allocation), `test_ma2c.py` (the from-scratch learner,
+including that it can actually learn), `test_significance.py` (hand-rolled t and
+Wilcoxon), `test_safety_constraints.py` (F1, F4), `test_corridor_isolation.py`
+(the corridor has not modified the original study), and the two report-provenance
+modules that parse published numbers back out of the markdown.
 
 Two patterns worth preserving:
 
@@ -449,10 +465,10 @@ breaks were applied to an isolated copy of the repository, and the suite caught
 1. Read this file. Then `REPORT.md` §1 and §6 for findings and limitations.
 2. Run `./.venv/Scripts/python.exe -m pytest` — expect 276 green before touching
    anything.
-3. Check `git status`. Expect the Phase 3 outputs described in §3.3 to be
-   untracked.
-4. The highest-value next action is **§3.1** — four commands, five minutes, and
-   it closes the gap between what the documents promise and what they contain.
+3. Check `git status` — expect it clean. Both studies are finished and
+   committed; §3 records what the remaining work used to be.
+4. For the corridor extension read `CORRIDOR_REPORT.md`, and `CORRIDOR_PLAN.md`
+   for why each design choice was made.
 5. Obey §5. Rules 1 and 2 protect artifacts that **cannot be regenerated**.
 
 ---

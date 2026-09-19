@@ -162,22 +162,67 @@ eval/              Measurement
   significance.py                    paired t and exact Wilcoxon (addendum A)
   followups.py                       generates addenda B-E from the same data
 
-tests/             513 tests, run with `python -m pytest`
+corridor/          The multi-intersection corridor extension (see below)
+  build_corridor.py                  generates an N-junction arterial
+  generate_corridor_routes.py        demand calibrated from real Cologne data
+  env.py                             the one corridor episode runner
+  controllers.py                     fixed-time, actuated, greedy, RL wrappers
+  ma2c.py                            MA2C, written from scratch
+  train_independent.py / train_ma2c.py
+  evaluate_corridor.py               the corridor sweep
+  robustness.py                      detector failure and topology transfer
+  phase_service.py                   starvation measured from the traces
+
+tests/             529 tests, run with `python -m pytest`
                    (the counts quoted in the docs are checked by the suite)
 
 results/           Outputs
   logs/                              per-episode CSVs, summary tables, traces
   plots/                             the figures in REPORT.md
   tripinfo/                          raw SUMO per-vehicle trip reports
+  corridor/                          the corridor's own logs, plots, tripinfo
 
 sumo_setup.py      Finds SUMO; imported before any SUMO import
 smoke_test.py      End-to-end toolchain check
 pyproject.toml     Python floor, pytest and ruff configuration
 PROJECT_CONTEXT.md Full project state: status, remaining work, ground rules
 REPORT.md          Findings, method, limitations, and addenda A-E
+CORRIDOR_REPORT.md The corridor study's findings
+CORRIDOR_PLAN.md   The corridor study's approved plan and design reasoning
 VERIFICATION.md    Evidence that the audited defects were fixed
 docs/PROGRESS.md   Build log and design decisions
 docs/REMEDIATION_LOG.md            Working log of the post-audit remediation
+```
+
+---
+
+## The multi-intersection corridor
+
+Everything above concerns a single junction. A second study extends the same
+harness to a **three-junction arterial corridor**, with an actuated baseline
+alongside fixed-time, independent DQN and PPO, and MA2C written from scratch.
+It is separate work in `corridor/` and changes nothing in the single-junction
+study — a test hashes those sources to keep it that way.
+
+**Its headline is less flattering to deep RL, which is the interesting part.**
+On a clean corridor Independent PPO cuts waiting time 63.5% against fixed-time
+— but SUMO's stock actuated controller manages 54.3% and a five-line queue
+heuristic 57.5%, so learning buys about six points over something that ships
+with the simulator. Under detector failure the ranking inverts: every adaptive
+controller becomes *worse than a fixed timer* once a quarter of lane detectors
+fail. And all of them starve a movement past the project's own safety bound.
+
+Full findings, method and limitations are in **[CORRIDOR_REPORT.md](CORRIDOR_REPORT.md)**;
+the design reasoning is in **[CORRIDOR_PLAN.md](CORRIDOR_PLAN.md)**.
+
+```bash
+python corridor/build_corridor.py --all              # corridor 2, 3 and 5
+python corridor/generate_corridor_routes.py --all    # 70 route files
+python corridor/train_independent.py --algo dqn      # ~2 h
+python corridor/train_independent.py --algo ppo      # ~2 h
+python corridor/train_ma2c.py                        # ~2 h
+python corridor/evaluate_corridor.py                 # the clean sweep
+python corridor/robustness.py --all                  # failure + transfer
 ```
 
 ---
