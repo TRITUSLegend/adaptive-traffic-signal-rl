@@ -86,7 +86,7 @@ see §12. It does not modify anything described below.
 
 ### Verified-green as of 2026-09-20
 
-- `python -m pytest` → **541 passed** (276 of them the single-intersection study)
+- `python -m pytest` → **572 passed** (276 of them the single-intersection study)
 - `python -m ruff check .` → **All checks passed**
 - `git status` → **clean**
 - `results/logs/evaluation_raw.csv` → **390 rows** = 13 controllers × 6 scenarios × 5 seeds, no gaps
@@ -145,7 +145,7 @@ Every entry-point script already does this; preserve it in anything new.
 | 7 | `eval/evaluate.py` | All controllers x all scenarios x 5 seeds | ~26 min |
 | 8 | `eval/make_plots.py` | Figures | s |
 | 9 | `eval/make_tables.py --write` | Splices tables into `REPORT.md` | s |
-| 10 | `python -m pytest` | 541 tests | ~6 s |
+| 10 | `python -m pytest` | 572 tests | ~6 s |
 
 Steps 5–7 are the long ones. Every script supports `--help`.
 
@@ -245,6 +245,9 @@ docs/REMEDIATION_LOG.md  Working log (HISTORICAL; its Phase 3 table was
 
 sumo_setup.py        Locates SUMO. Import before any traci/sumolib/sumo_rl.
 smoke_test.py        5-check end-to-end toolchain verification
+demo_watch.py        DEMO ONLY. Opens sumo-gui and drives it with an existing
+                     controller. Writes nothing, trains nothing, measures
+                     nothing - see README "Watch it run".
 pyproject.toml       Python floor, pytest config, pinned ruff rule set
 
 networks/
@@ -285,7 +288,7 @@ corridor/           THE CORRIDOR EXTENSION - see 12
   paths.py                         single naming authority (the F2 lesson)
   networks/ routes/ models/        generated nets, demand, trained policies
 
-tests/                             541 tests; documented counts self-check
+tests/                             572 tests; documented counts self-check
 results/
   logs/     per-episode CSVs, summaries, 78 trace CSVs, runs/ chain logs
   plots/    4 figures used in REPORT.md
@@ -421,7 +424,7 @@ find . -path ./.venv -prune -o -name "__pycache__" -type d -exec rm -rf {} +
 ## 10. Testing discipline
 
 ```bash
-./.venv/Scripts/python.exe -m pytest        # 541 tests, ~6 s
+./.venv/Scripts/python.exe -m pytest        # 572 tests, ~6 s
 ./.venv/Scripts/python.exe -m ruff check .  # rule set pinned in pyproject.toml
 ```
 

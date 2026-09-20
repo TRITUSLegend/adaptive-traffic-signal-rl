@@ -131,6 +131,57 @@ Every script supports `--help`.
 
 ---
 
+## Watch it run
+
+Everything above is headless and prints numbers. To actually *see* it — a SUMO
+window with real vehicles, the lights changing because the trained agent just
+decided they should, and the queue length printing to the terminal as it
+happens:
+
+```bash
+python demo_watch.py
+```
+
+That opens the trained DQN on the intersection, on an hour of traffic it was
+never trained on. `sumo-gui` ships with the same `eclipse-sumo` package as
+`sumo`, so there is nothing extra to install.
+
+The demonstration is most convincing as a contrast. Run the baseline first,
+then the agent, on the identical hour of traffic:
+
+```bash
+python demo_watch.py --controller fixed-time    # the signal that ignores traffic
+python demo_watch.py                            # the DQN, same cars, same hour
+```
+
+For the corridor, and its three junctions at once:
+
+```bash
+python demo_watch.py --corridor                     # Independent DQN
+python demo_watch.py --corridor --controller actuated   # SUMO's own gap-based signal
+```
+
+Useful flags:
+
+```bash
+python demo_watch.py --list                   # the controllers and models available
+python demo_watch.py --model ppo              # a different trained policy
+python demo_watch.py --controller greedy      # the queue heuristic
+python demo_watch.py --scenario peak          # a different demand pattern
+python demo_watch.py --delay 200              # slow the window down (ms per step)
+python demo_watch.py --seconds 300            # five simulated minutes, not an hour
+```
+
+Close the SUMO window at any point to stop early.
+
+**This is a demonstration, not a measurement.** `demo_watch.py` writes nothing
+— no CSV, no trace, no tripinfo — and trains nothing. One run of one scenario
+with a GUI frame delay is an anecdote; the numbers to quote are in `REPORT.md`
+and `CORRIDOR_REPORT.md`, measured headless over five seeds by
+`eval/evaluate.py` and `corridor/evaluate_corridor.py`.
+
+---
+
 ## Repository layout
 
 ```
@@ -173,7 +224,7 @@ corridor/          The multi-intersection corridor extension (see below)
   robustness.py                      detector failure and topology transfer
   phase_service.py                   starvation measured from the traces
 
-tests/             541 tests, run with `python -m pytest`
+tests/             572 tests, run with `python -m pytest`
                    (the counts quoted in the docs are checked by the suite)
 
 results/           Outputs
@@ -184,6 +235,7 @@ results/           Outputs
 
 sumo_setup.py      Finds SUMO; imported before any SUMO import
 smoke_test.py      End-to-end toolchain check
+demo_watch.py      Watch a controller run in SUMO's GUI; writes nothing
 pyproject.toml     Python floor, pytest and ruff configuration
 PROJECT_CONTEXT.md Full project state: status, remaining work, ground rules
 REPORT.md          Findings, method, limitations, and addenda A-E
