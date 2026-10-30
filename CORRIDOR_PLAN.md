@@ -2,7 +2,7 @@
 
 **Status: PROPOSAL. No code has been written and nothing has been trained.**
 This document exists to be approved, amended or rejected before implementation
-begins. Written 2026-09-19 against the tree at commit `e44aa24`.
+begins. Written 2026-09-19 against the tree at commit `8200b81`.
 
 **What this extension is for.** The assignment brief requires a corridor
 deliverable, actuated baselines, multi-agent RL including MA2C, real-data-seeded

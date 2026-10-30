@@ -79,8 +79,8 @@ see §12. It does not modify anything described below.
 | External audit remediation | defects D1–D9 | **complete, committed** |
 | Phase 2 verification | mutation test, 150-episode bit-for-bit reproduction | **complete, committed** |
 | Phase 3 experiments (A–E) | compute: training + evaluation | **complete** (chain finished 2026-09-08 20:09) |
-| Phase 3 publication | splice addenda into `REPORT.md` | **complete** (2026-09-19, commit `e44aa24`) |
-| Version control of Phase 3 outputs | models, traces, CSVs | **complete** (2026-09-19, commit `e44aa24`) |
+| Phase 3 publication | splice addenda into `REPORT.md` | **complete** (2026-09-19, commit `8200b81`) |
+| Version control of Phase 3 outputs | models, traces, CSVs | **complete** (2026-09-19, commit `8200b81`) |
 | Repository hygiene | tripinfo + caches removed | **complete** (284 MB → 19 MB) |
 | Stretch goal 9 (multi-intersection corridor) | — | **reopened as new work — see §12** |
 
@@ -102,7 +102,7 @@ see §12. It does not modify anything described below.
 ### 3.0 Status: the single-intersection work is CLOSED OUT
 
 Everything this section previously listed as outstanding was completed on
-2026-09-19 in commit `e44aa24`. Kept here in short form so the history is
+2026-09-19 in commit `8200b81`. Kept here in short form so the history is
 legible:
 
 | Was pending | Outcome |

@@ -38,7 +38,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-# sha256 of each protected file, recorded 2026-09-19 at commit 37f2fb6.
+# sha256 of each protected file, recorded 2026-09-19 at commit 03d5a40.
 PROTECTED = {
     "eval/simulation.py":
         "a8a6f9a239209f13cb84feaae28012d3ba32a94fd2d1bc95183618a31b8effc6",

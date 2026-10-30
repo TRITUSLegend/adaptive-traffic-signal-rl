@@ -1,6 +1,6 @@
 # CLEANUP_AUDIT.md — Phase 1, read-only
 
-Produced 2026-09-20 against commit `b693aee`. **Nothing has been changed.**
+Produced 2026-09-20 against commit `a585b41`. **Nothing has been changed.**
 Every finding below is risk-tiered; only LOW items are proposed for automatic
 removal in Phase 2.
 
